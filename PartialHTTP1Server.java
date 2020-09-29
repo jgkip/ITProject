@@ -40,10 +40,10 @@ public class PartialHTTP1Server {
 					String method = tokens.nextToken(); 
 
 					//parse file part of request 
-					String file = tokens.nextToken();  //parse the folder/filename 
+					String file = tokens.nextToken();  
 					StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
-					String folderName = files.nextToken(); //get folder token
 					String fileName = files.nextToken(); //get file token
+					System.out.println(fileName);
 					StringTokenizer fileParse = new StringTokenizer(fileName, ".");
 					String fn = fileParse.nextToken();
 					String fileExt = fileParse.nextToken(); 
@@ -105,12 +105,6 @@ public class PartialHTTP1Server {
 					//get current directory 
 					String crntDir = System.getProperty("user.dir");
 					StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
-					String home = dirTokens.nextToken();
-					String user = dirTokens.nextToken();
-					String name = dirTokens.nextToken();
-					String desktop = dirTokens.nextToken(); 
-					String fold = dirTokens.nextToken(); 
-
 
 					//walk through folder and check for file 
 					//boolean inDir = false; 
@@ -134,12 +128,12 @@ public class PartialHTTP1Server {
 					if (method.equals("GET") && inDir) {
 						File resource = fetchFile(fileName, actualFiles); //fetch the file
 						if (fileExt.equals("html") || fileExt.equals("txt")) {
-							status = "HTTP/1.0 200 OK";
-							contentType = "Content-Type: text/html";
-							contentLength = "Content-Length: " + Long.toString(resource.length());
+							status = "HTTP/1.0 200 OK\r";
+							contentType = "Content-Type: text/html\r";
+							contentLength = "Content-Length: " + Long.toString(resource.length()) + "\r";
 							//change format--currently in seconds 
 							lastMod = "Last-Modified: " + Long.toString(resource.lastModified());
-							String header = status + contentType; 
+							String header = status + contentType + contentLength + lastMod; 
 							String[] headers = {status, contentType};
 							//outClient.println(header);
 							outClient.println(header);
@@ -183,7 +177,7 @@ public class PartialHTTP1Server {
 					//create client socket 
 					Socket client = serverSocket.accept(); 
 
-					PrintWriter outToClient = new PrintWriter(client.getOutputStream(), true);
+					//PrintWriter outToClient = new PrintWriter(client.getOutputStream(), true);
 
 					//for each client connection create thread and 
 					//add to thread list 
@@ -312,6 +306,7 @@ public class PartialHTTP1Server {
 
 	//modify to take command-line input
 	public static void main(String[] args) {
+		
 		PartialHTTP1Server server = new PartialHTTP1Server(5000);
 	}
 }
