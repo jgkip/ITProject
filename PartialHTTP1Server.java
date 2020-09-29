@@ -16,13 +16,15 @@ public class PartialHTTP1Server {
 		private Socket clientSocket; 
 
 		private DataInputStream inStream; 
-		private PrintWriter outClient; 
+		private PrintWriter outClient;
+		private OutputStream outHeader;
 
 		//thread class to handle requests 
 		public WorkerThread(Socket clientSocket) throws IOException {
 			this.clientSocket = clientSocket; 
 			inStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
 			outClient = new PrintWriter(clientSocket.getOutputStream(), true);
+			outHeader = clientSocket.getOutputStream();  
 		}
 		public void run() {
 			try { 
@@ -34,7 +36,7 @@ public class PartialHTTP1Server {
 					//tokenize request into 
 					//method, file, protocol 
 					StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
-					
+						
 					String method = tokens.nextToken(); 
 
 					//parse file part of request 
@@ -42,6 +44,9 @@ public class PartialHTTP1Server {
 					StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
 					String folderName = files.nextToken(); //get folder token
 					String fileName = files.nextToken(); //get file token
+					StringTokenizer fileParse = new StringTokenizer(fileName, ".");
+					String fn = fileParse.nextToken();
+					String fileExt = fileParse.nextToken(); 
 					
 					//parse protocol to get protocol name and version
 					String protocol = tokens.nextToken();
@@ -96,26 +101,62 @@ public class PartialHTTP1Server {
 						}
 						
 					}
+
+					//get current directory 
+					String crntDir = System.getProperty("user.dir");
+					StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
+					String home = dirTokens.nextToken();
+					String user = dirTokens.nextToken();
+					String name = dirTokens.nextToken();
+					String desktop = dirTokens.nextToken(); 
+					String fold = dirTokens.nextToken(); 
+
+
+					//walk through folder and check for file 
+					//boolean inDir = false; 
+	
+					//if file in folder inDir = true 
+					//if GET command and file in folder...
+					ArrayList<String> fileNames = getFileList(crntDir);
+					ArrayList<File> actualFiles = getFiles(crntDir);
+					boolean inDir = fileNames.contains(fileName);
+
+					String separator = System.getProperty("line.separator");
+					//DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+					//System.out.println(inDir);
+					String status;
+					String allow = "GET, HEAD, POST";
+					String contentEncoding;
+					String contentLength;
+					String contentType;
+					String expires; 
+					String lastMod;
+					if (method.equals("GET") && inDir) {
+						File resource = fetchFile(fileName, actualFiles); //fetch the file
+						if (fileExt.equals("html") || fileExt.equals("txt")) {
+							status = "HTTP/1.0 200 OK";
+							contentType = "Content-Type: text/html";
+							contentLength = "Content-Length: " + Long.toString(resource.length());
+							//change format--currently in seconds 
+							lastMod = "Last-Modified: " + Long.toString(resource.lastModified());
+							String header = status + contentType; 
+							String[] headers = {status, contentType};
+							//outClient.println(header);
+							outClient.println(header);
+							//outClient.println(contentType);
+							//outHeader.write(header.getBytes());
+							//outHeader.write(status.getBytes());
+							//outHeader.write(contentType.getBytes());
+							//outHeader.flush();
+							continue;
+							
+						}
+						continue;
+						
+
+					}
+
 					
-					//TO IMPLEMENT 
-					//
-					//200
-					//
-					//304
-					//
-					//403
-					//
-					//404
-					//
-					//408
-					//
-					//500 Internal Error
-					//
-					//
-					//
-					//
-
-
 					//test to see if threads work--delete later
 					outClient.println("Valid request");
 					
@@ -176,6 +217,98 @@ public class PartialHTTP1Server {
 					System.out.println(i); 
 		}  
 	}
+
+	static String response(){
+		String status = "HTTP/1.0 200 OK\n";
+		String contentType = "Content-Type: text/html";
+		String header = status + contentType;
+		return header; 
+	}
+
+	static File fetchFile(String name, ArrayList<File> files) {
+		for (int i = 0; i < files.size(); i++) {
+			if (files.get(i).getName().equals(name)) {
+				return files.get(i);
+			}
+		}
+		return null;
+	}
+
+	//method to walk directory 
+	static void walkDir(File[] arr,int index,int level, ArrayList<String> f) { 
+        // terminate condition 
+        if(index == arr.length) 
+            return; 
+           
+        // for files 
+        if(arr[index].isFile()) {
+            //System.out.println(arr[index].getName()); 
+   	        f.add(arr[index].getName());
+        }
+        // for sub-directories 
+        else if(arr[index].isDirectory()) { 
+            //System.out.println("[" + arr[index].getName() + "]"); 
+               
+            // recursion for sub-directories 
+            walkDir(arr[index].listFiles(), 0, level + 1, f); 
+        } 
+            
+        // recursion for main directory 
+        walkDir(arr,++index, level, f); 
+    } 
+
+    static void findFiles(File[] arr,int index,int level, ArrayList<File> f) { 
+        // terminate condition 
+        if(index == arr.length) 
+            return; 
+           
+        // for files 
+        if(arr[index].isFile()) {
+            //System.out.println(arr[index].getName()); 
+   	        f.add(arr[index]);
+        }
+        // for sub-directories 
+        else if(arr[index].isDirectory()) { 
+            //System.out.println("[" + arr[index].getName() + "]"); 
+               
+            // recursion for sub-directories 
+            findFiles(arr[index].listFiles(), 0, level + 1, f); 
+        } 
+            
+        // recursion for main directory 
+        findFiles(arr,++index, level, f); 
+    } 
+
+    static ArrayList<File> getFiles(String dirName) {
+    	File maindir = new File(dirName);
+		ArrayList<File> filez = new ArrayList<File>(); 
+
+		if (maindir.exists() && maindir.isDirectory()) { 
+            
+            File arr[] = maindir.listFiles(); 
+                       
+            findFiles(arr,0,0, filez); 
+          
+        }
+
+        return filez; 
+    }
+
+    //method that gets list of files in directory
+    static ArrayList<String> getFileList(String dirName) {
+    	File maindir = new File(dirName);
+		ArrayList<String> filez = new ArrayList<String>(); 
+
+		if (maindir.exists() && maindir.isDirectory()) { 
+            
+            File arr[] = maindir.listFiles(); 
+                       
+            walkDir(arr,0,0, filez); 
+          
+        }
+
+        return filez; 
+    }
 
 	//modify to take command-line input
 	public static void main(String[] args) {
