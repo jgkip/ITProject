@@ -1,12 +1,12 @@
 import java.net.*; 
 import java.io.*;
-import java.lang.*;
 import java.util.StringTokenizer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.ArrayList;
-import java.nio.file.Files;
 import java.text.SimpleDateFormat;
+import java.text.ParseException;
+import java.util.Date;
 
 public class PartialHTTP1Server {
 
@@ -31,7 +31,6 @@ public class PartialHTTP1Server {
 		}
 		public void run() {
 			try { 
-				//2DO: implement GET, HEAD, POST here(?)
 				outClient.println("Welcome to server");
 				int lines = 0; 
 				String request = "";
@@ -136,6 +135,9 @@ public class PartialHTTP1Server {
 		String file = tokens.nextToken();  
 		StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
 		String fileName = files.nextToken(); //get file token
+		StringTokenizer fileParse = new StringTokenizer(fileName, ".");
+		String fn = fileParse.nextToken();
+		String fileExt = fileParse.nextToken(); 
 					
 		//parse protocol to get protocol name and version
 		String protocol = tokens.nextToken();
@@ -160,14 +162,15 @@ public class PartialHTTP1Server {
 					
 		//NEED TO FIX LOGIC--thread needs to sleep?
 
-		//check if valid request but no command support 
-		//respond with "501 Not Implemented"
-		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
-			&& (version.equals("1.0")))) {
-			System.out.println("command not implemented");
-			return "HTTP/1.0 501 Not Implemented";
-						
-		}
+		//check if valid request but no implementation
+                 if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
+				if(method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK")){
+                      			return "501 Not Implemented";
+                      		}
+                       		 else{
+                       			return "400 Bad Request";
+                       		 }       
+                  }
 
 		//general bad requests 
 		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
@@ -202,30 +205,33 @@ public class PartialHTTP1Server {
 		boolean inDir = fileNames.contains(fileName); //check if requested file is in directory
 
 		String separator = System.getProperty("line.separator");
-		SimpleDateFormat date = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
-		//date.setTimeZone(TimeZone.getTimeZone("GMT"));
-		//System.out.println(inDir);
-		String status;
-		String allow = "Allow: GET, HEAD, POST\r\n";
-		String contentEncoding = "Content-Encoding: identity"; //x-gzip, zip 
-		String contentLength;
-		String contentType;
-		String expires; 
-		String lastMod;
-		if ((method.equals("GET") || method.equals("POST")) && inDir) {
-			File resource = fetchFile(fileName, actualFiles); //fetch the file
-			if (fileName.contains("html") || fileName.contains("txt")) {
-				status = "HTTP/1.0 200 OK \r\n";
-				contentType = "Content-Type: text/html \r\n";
-				contentLength = "Content-Length: " + Long.toString(resource.length()) + " \r\n";
-				//change format--currently in seconds  
-				lastMod = "Last-Modified: " + date.format(resource.lastModified()) + " \r\n";
-				String header = status + allow + contentLength + contentType + lastMod + contentEncoding; 
-				System.out.println(resource.getPath().toString()); 
-				return header;  	
-			}
-						
-		}
+		String head;
+
+				
+				// Perform HEAD command
+				if (method.equals("HEAD") && inDir) {
+					File resource = fetchFile(fileName, actualFiles); //fetch the file
+					String status = "HTTP/1.0 200 OK\r";
+					String allow = "Allow: GET, HEAD\r";
+					head = status + allow + getHeader(resource, fileExt);
+					return head;
+				}
+				// Perform GET command
+				if (method.equals("GET") && inDir) {
+					File resource = fetchFile(fileName, actualFiles); //fetch the file
+					String status = "HTTP/1.0 200 OK\r";
+					String allow = "Allow: GET, HEAD\r";
+					head = status + allow + getHeader(resource, fileExt);
+					System.out.println(resource.getPath().toString()); 
+					return head;
+				}
+				// Perform POST command DO NOT ADD ALLOW
+				if (method.equals("POST") && inDir) {
+					File resource = fetchFile(fileName, actualFiles); //fetch the file
+					String status = "HTTP/1.0 200 OK\r";
+					head = status + getHeader(resource, fileExt);
+					return head;
+				}
 
 		if(inDir == false) {
 			return "HTTP/1.0 404 Not Found";
@@ -318,9 +324,77 @@ public class PartialHTTP1Server {
         return filez; 
     }
 
+				/*Method to return the content type of the file
+				@param Extension on the file 
+				@return Content Type
+				**/
+				private static String getcontentType(String ext){
+					String contentType = "";
+					switch(ext){
+					case "html":
+					case "txt":
+					case "text":
+					contentType = "text/html";
+					break;
+					case "gif":
+					contentType = "image/gif";
+					break;
+					case "jpeg":
+					contentType = "image/jpeg";
+					break;
+					case "png":
+					contentType = "image/png";
+					break;
+					case "pdf":
+					contentType = "application/pdf";
+					break;
+					case "gzip":
+					contentType = "application/x-gzip";
+					break;
+					case "zip":
+					contentType = "application/zip";
+					break;
+					default:
+					contentType = "application/octet-stream";
+					}
+					return contentType;
+				}
+
+				/*Method to create the Header 
+				@param File to extract information from
+				@return The header information
+				**/
+				private static String getHeader(File file, String ext){
+					
+					String header = "";
+					String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
+					String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
+					String contentEncoding = "Content-Encoding: identity\r" + "\n";
+					
+					String date = "Sat, 21 Jul 2021 10:00 GMT";
+					Date expDate = new Date(date);
+					SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
+				
+
+					String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
+
+					date = s.format(expDate);
+					String expires = "Expires: " + date + "\r" + "\n";
+					header = contentType + contentLength + contentEncoding + lastModified + expires;
+					return header;
+
+				}
+
+
 	//modify to take command-line input
 	public static void main(String[] args) {
-		PartialHTTP1Server server = new PartialHTTP1Server(5000);
+		//try{
+		//int port = Integer.parseInt(args[0]);
+		//}
+		//catch (NumberFormatException e){
+		//System.out.println(e + "Please enter a valid port number");
+		//}
+		//PartialHTTP1Server server = new PartialHTTP1Server(port);
+		PartialHTTP1Server server = new PartialHTTP1Server(5000);		
 	}
 }
-
