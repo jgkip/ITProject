@@ -4,52 +4,56 @@ import java.util.StringTokenizer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.text.ParseException;
+import java.util.Date;
 
-public class PartialHTTP1Server {
+public class PartialHTTP1Server implements Runnable{
 
 	private ArrayList<WorkerThread> threads = new ArrayList<>(50); //list of threads; once full 
-
 	private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size 5
 
-	//worker thread to handle requests
+	//worker thread class to handle requests
 	private static class WorkerThread implements Runnable {
+		
 		private Socket clientSocket; 
-
 		private DataInputStream inStream; 
 		private PrintWriter outClient;
 		private OutputStream outHeader;
 
-		//thread class to handle requests 
+		//worker thread to handle requests 
 		public WorkerThread(Socket clientSocket) throws IOException {
 			this.clientSocket = clientSocket; 
 			inStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
 			outClient = new PrintWriter(clientSocket.getOutputStream(), true);
 			outHeader = clientSocket.getOutputStream();  
 		}
+
+		@Override
 		public void run() {
 			try { 
 				//2DO: implement GET, HEAD, POST here(?)
 				outClient.println("Welcome to server");
-				while (true) {
-					//parse request 
-					String request = inStream.readUTF(); 
-					//tokenize request into 
-					//method, file, protocol 
-					StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
-						
-					String method = tokens.nextToken(); 
 
-					//parse file part of request 
+				while (true) {
+					String request = inStream.readUTF(); 
+ 
+					StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
+
+					//Parse Request into method, file, protocol
+					String method = tokens.nextToken(); 
 					String file = tokens.nextToken();  
-					StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
-					String fileName = files.nextToken(); //get file token
+					String protocol = tokens.nextToken();
+
+					//Get file information
+					StringTokenizer files = new StringTokenizer(file, "/"); 
+					String fileName = files.nextToken(); 
 					System.out.println(fileName);
 					StringTokenizer fileParse = new StringTokenizer(fileName, ".");
 					String fn = fileParse.nextToken();
 					String fileExt = fileParse.nextToken(); 
 					
-					//parse protocol to get protocol name and version
-					String protocol = tokens.nextToken();
+			
 
 					//400 Bad Request
 					//if no version is specified...
@@ -60,46 +64,44 @@ public class PartialHTTP1Server {
 					} 	
 					StringTokenizer protocolData = new StringTokenizer(protocol, "/");
 					String http = protocolData.nextToken();
-
 					//System.out.println("version: " + protocolData.nextToken());
-					
 					String version = protocolData.nextToken();
 					
 					
-					//check if valid request 
 					//check if parent directory of server matches folderName
 					
 					//NEED TO FIX LOGIC--thread needs to sleep?
 
-					//check if valid request but no command support 
-					//respond with "501 Not Implemented"
-					if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
-						&& (version.equals("1.0")))) {
-						System.out.println("command not implemented");
-						outClient.println("501 Not Implemented");
-						continue; 
-					}
+					 //check if valid request but no implementation
+                   			 if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
 
-					//general bad requests 
-					if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
-						&& (!version.equals("1.0")))) {
+                      				  if(method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK")){
+                      					  System.out.println("command not implemented");
+                      					  outClient.println("501 Not Implemented");
+                      				  }
+                       				 else{
+                       					 outClient.println("400 Bad Request");
+                       				 }        
+                        			continue;
+                 			   }
+
+					//check if both version and request are invalid
+					if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && !(version.equals("1.0"))) {
 						outClient.println("400 Bad Request");
 						continue; 
 					}
 
-					//check if version # is 1.0--if greater than 1.0, 
-					//respond with "505 HTTP Version Not Supported"
-					if ((method.equals("GET")) || (method.equals("POST")) || (method.equals("HEAD"))) {
+					//check if request is valid but version is invalid
+					if (method.equals("GET") || method.equals("POST")|| method.equals("HEAD")) {
 						//System.out.println("we are here");
 						if (!version.equals("1.0")) {
 							System.out.println("version is not supported");
 							//System.out.println(protocol);
 							outClient.println("505 HTTP Version Not Supported");
 							continue; 
-							
 							//clientSocket.close(); 
 						}
-						
+	
 					}
 
 					//get current directory 
@@ -118,13 +120,68 @@ public class PartialHTTP1Server {
 					String separator = System.getProperty("line.separator");
 					//DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
 					//System.out.println(inDir);
-					String status;
-					String allow = "GET, HEAD, POST";
-					String contentEncoding;
-					String contentLength;
-					String contentType;
-					String expires; 
-					String lastMod;
+					//String status;
+					//String allow = "GET, HEAD, POST";
+					//String contentEncoding;
+					//String contentLength;
+					//String contentType;
+					//String expires; 
+					//String lastMod;
+					String head;
+
+				
+				// Perform HEAD command
+				if (method.equals("HEAD") && inDir) {
+					File resource = fetchFile(fileName, actualFiles); //fetch the file
+					head = getHeader(resource, fileExt) + "Allow: GET, HEAD, POST";
+					//outClient.println(head);
+					
+					try{
+						byte[] byteResponse = head.getBytes();
+						outHeader.write(byteResponse);
+						outHeader.flush();
+					}
+					
+					catch(SocketTimeoutException e){
+						byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
+						outHeader.write(byteResponse);
+						outHeader.flush();
+					}
+					inStream.close();
+					outClient.close();
+					outHeader.close();
+					clientSocket.close();
+				continue;
+
+				}
+				// Perform GET command
+				if (method.equals("GET") && inDir) {
+					File resource = fetchFile(fileName, actualFiles); //fetch the file
+					head = getHeader(resource, fileExt) + "Allow: GET, HEAD, POST";
+					//outClient.println(head);
+					
+					try{
+						byte[] byteResponse = head.getBytes();
+						outHeader.write(byteResponse);
+						outHeader.flush();
+					}
+					
+					catch(SocketTimeoutException e){
+						byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
+						outHeader.write(byteResponse);
+						outHeader.flush();
+					}
+					inStream.close();
+					outClient.close();
+					outHeader.close();
+					clientSocket.close();
+				continue;
+				}
+			
+
+
+				
+					/**
 					if (method.equals("GET") && inDir) {
 						File resource = fetchFile(fileName, actualFiles); //fetch the file
 						if (fileExt.equals("html") || fileExt.equals("txt")) {
@@ -149,6 +206,7 @@ public class PartialHTTP1Server {
 						
 
 					}
+				*/
 
 					
 					//test to see if threads work--delete later
@@ -158,7 +216,8 @@ public class PartialHTTP1Server {
 
 			}
 			catch (Exception e) {
-				System.exit(0);
+				outClient.println("HTTP/1.0 500 Internal Server Error");
+				//System.exit(0);
 			}
 		}
 	}
@@ -188,16 +247,8 @@ public class PartialHTTP1Server {
 					//worker.run(); 
 					System.out.println("Thread size: " + threads.size());
 					//worker.run(); 
-	
-					//if there are no more threads 
-					//respond with 503 
-					/*
-					if (threads.size() == 50) {
-						outToClient.println("503 Service Unavailable");
-						client.close()
-						
-					}
-					*/
+
+					
 				}
 				catch(IOException i) { 
 					System.out.println(i); 
@@ -212,12 +263,7 @@ public class PartialHTTP1Server {
 		}  
 	}
 
-	static String response(){
-		String status = "HTTP/1.0 200 OK\n";
-		String contentType = "Content-Type: text/html";
-		String header = status + contentType;
-		return header; 
-	}
+
 
 	static File fetchFile(String name, ArrayList<File> files) {
 		for (int i = 0; i < files.size(); i++) {
@@ -303,11 +349,82 @@ public class PartialHTTP1Server {
 
         return filez; 
     }
+				/*Method to return the content type of the file
+				@param Extension on the file 
+				@return Content Type
+				**/
+				private static String getcontentType(String ext){
+					String contentType = "";
+					switch(ext){
+					case "html":
+					contentType = "text/html";
+					break;
+					case "txt":
+					contentType = "text/html";
+					break;
+					case "gif":
+					contentType = "image/gif";
+					break;
+					case "jpeg":
+					contentType = "image/jpeg";
+					break;
+					case "png":
+					contentType = "image/png";
+					break;
+					case "pdf":
+					contentType = "application/pdf";
+					break;
+					case "gzip":
+					contentType = "application/x-gzip";
+					break;
+					case "zip":
+					contentType = "application/zip";
+					break;
+					default:
+					contentType = "application/octet-stream";
+					}
+					return contentType;
+				}
+
+				/*Method to create the Header 
+				@param File to extract information from
+				@return The header information
+				**/
+				
+
+				private static String getHeader(File file, String ext){
+					
+					String header = "";
+					String status = "HTTP/1.0 200 OK\r";
+					String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
+					String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
+					String contentEncoding = "identity\r" + "\n";
+					
+					String date = "Sat, 21 Jul 2021 10:00 GMT";
+					Date expDate = new Date(date);
+					SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
+				
+
+					String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
+
+					date = s.format(expDate);
+					String expires = "Expires: " + date + "\r" + "\n";
+					header = status + contentType + contentLength + contentEncoding + lastModified + expires;
+					return header;
+
+				}
+
 
 	//modify to take command-line input
 	public static void main(String[] args) {
-		
-		PartialHTTP1Server server = new PartialHTTP1Server(5000);
+		//try{
+		//int port = Integer.parseInt(args[0]);
+		//}
+		//catch (NumberFormatException e){
+		//System.out.println(e + "Please enter a valid port number");
+		//}
+		//PartialHTTP1Server server = new PartialHTTP1Server(port);
+		PartialHTTP1Server server = new PartialHTTP1Server(5000);		
 	}
 }
 
