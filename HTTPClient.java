@@ -29,7 +29,7 @@ public class HTTPClient {
 				line = input.readLine();
 				output.writeUTF(line);
 				ifs = inFromServer.readLine(); 
-				System.out.println(ifs);
+				System.out.print(ifs);
 
 			}
 			catch(IOException i) { 
