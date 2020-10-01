@@ -1,223 +1,56 @@
 import java.net.*; 
 import java.io.*;
+import java.lang.*;
 import java.util.StringTokenizer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.ArrayList;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
-import java.text.ParseException;
-import java.util.Date;
 
-public class PartialHTTP1Server implements Runnable{
+public class PartialHTTP1Server {
 
 	private ArrayList<WorkerThread> threads = new ArrayList<>(50); //list of threads; once full 
+
 	private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size 5
 
-	//worker thread class to handle requests
+	//worker thread to handle requests
 	private static class WorkerThread implements Runnable {
-		
 		private Socket clientSocket; 
+
 		private DataInputStream inStream; 
 		private PrintWriter outClient;
-		private OutputStream outHeader;
+		private DataOutputStream outHeader; 
 
-		//worker thread to handle requests 
+		//thread class to handle requests 
 		public WorkerThread(Socket clientSocket) throws IOException {
 			this.clientSocket = clientSocket; 
 			inStream = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()));
 			outClient = new PrintWriter(clientSocket.getOutputStream(), true);
-			outHeader = clientSocket.getOutputStream();  
+			outHeader = new DataOutputStream(clientSocket.getOutputStream());  
 		}
-
-		@Override
 		public void run() {
 			try { 
 				//2DO: implement GET, HEAD, POST here(?)
 				outClient.println("Welcome to server");
-
-				while (true) {
-					String request = inStream.readUTF(); 
- 
-					StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
-
-					//Parse Request into method, file, protocol
-					String method = tokens.nextToken(); 
-					String file = tokens.nextToken();  
-					String protocol = tokens.nextToken();
-
-					//Get file information
-					StringTokenizer files = new StringTokenizer(file, "/"); 
-					String fileName = files.nextToken(); 
-					System.out.println(fileName);
-					StringTokenizer fileParse = new StringTokenizer(fileName, ".");
-					String fn = fileParse.nextToken();
-					String fileExt = fileParse.nextToken(); 
-					
-			
-
-					//400 Bad Request
-					//if no version is specified...
-					if (protocol.length() != 8) {
-						//System.out.println("yes");
-						outClient.println("400 Bad Request");
-						continue;
-					} 	
-					StringTokenizer protocolData = new StringTokenizer(protocol, "/");
-					String http = protocolData.nextToken();
-					//System.out.println("version: " + protocolData.nextToken());
-					String version = protocolData.nextToken();
-					
-					
-					//check if parent directory of server matches folderName
-					
-					//NEED TO FIX LOGIC--thread needs to sleep?
-
-					 //check if valid request but no implementation
-                   			 if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
-
-                      				  if(method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK")){
-                      					  System.out.println("command not implemented");
-                      					  outClient.println("501 Not Implemented");
-                      				  }
-                       				 else{
-                       					 outClient.println("400 Bad Request");
-                       				 }        
-                        			continue;
-                 			   }
-
-					//check if both version and request are invalid
-					if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && !(version.equals("1.0"))) {
-						outClient.println("400 Bad Request");
-						continue; 
-					}
-
-					//check if request is valid but version is invalid
-					if (method.equals("GET") || method.equals("POST")|| method.equals("HEAD")) {
-						//System.out.println("we are here");
-						if (!version.equals("1.0")) {
-							System.out.println("version is not supported");
-							//System.out.println(protocol);
-							outClient.println("505 HTTP Version Not Supported");
-							continue; 
-							//clientSocket.close(); 
-						}
-	
-					}
-
-					//get current directory 
-					String crntDir = System.getProperty("user.dir");
-					StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
-
-					//walk through folder and check for file 
-					//boolean inDir = false; 
-	
-					//if file in folder inDir = true 
-					//if GET command and file in folder...
-					ArrayList<String> fileNames = getFileList(crntDir);
-					ArrayList<File> actualFiles = getFiles(crntDir);
-					boolean inDir = fileNames.contains(fileName);
-
-					String separator = System.getProperty("line.separator");
-					//DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
-					//System.out.println(inDir);
-					//String status;
-					//String allow = "GET, HEAD, POST";
-					//String contentEncoding;
-					//String contentLength;
-					//String contentType;
-					//String expires; 
-					//String lastMod;
-					String head;
-
-				
-				// Perform HEAD command
-				if (method.equals("HEAD") && inDir) {
-					File resource = fetchFile(fileName, actualFiles); //fetch the file
-					head = getHeader(resource, fileExt) + "Allow: GET, HEAD, POST";
-					//outClient.println(head);
-					
-					try{
-						byte[] byteResponse = head.getBytes();
-						outHeader.write(byteResponse);
-						outHeader.flush();
-					}
-					
-					catch(SocketTimeoutException e){
-						byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
-						outHeader.write(byteResponse);
-						outHeader.flush();
-					}
-					inStream.close();
-					outClient.close();
-					outHeader.close();
-					clientSocket.close();
-				continue;
-
+				int lines = 0; 
+				String request = "";
+				File resource = null; 
+				while (lines != 1) {
+					request = inStream.readUTF(); 
+					lines++;
 				}
-				// Perform GET command
-				if (method.equals("GET") && inDir) {
-					File resource = fetchFile(fileName, actualFiles); //fetch the file
-					head = getHeader(resource, fileExt) + "Allow: GET, HEAD, POST";
-					//outClient.println(head);
-					
-					try{
-						byte[] byteResponse = head.getBytes();
-						outHeader.write(byteResponse);
-						outHeader.flush();
-					}
-					
-					catch(SocketTimeoutException e){
-						byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
-						outHeader.write(byteResponse);
-						outHeader.flush();
-					}
-					inStream.close();
-					outClient.close();
-					outHeader.close();
-					clientSocket.close();
-				continue;
-				}
-			
-
-
-				
-					/**
-					if (method.equals("GET") && inDir) {
-						File resource = fetchFile(fileName, actualFiles); //fetch the file
-						if (fileExt.equals("html") || fileExt.equals("txt")) {
-							status = "HTTP/1.0 200 OK\r";
-							contentType = "Content-Type: text/html\r";
-							contentLength = "Content-Length: " + Long.toString(resource.length()) + "\r";
-							//change format--currently in seconds 
-							lastMod = "Last-Modified: " + Long.toString(resource.lastModified());
-							String header = status + contentType + contentLength + lastMod; 
-							String[] headers = {status, contentType};
-							//outClient.println(header);
-							outClient.println(header);
-							//outClient.println(contentType);
-							//outHeader.write(header.getBytes());
-							//outHeader.write(status.getBytes());
-							//outHeader.write(contentType.getBytes());
-							//outHeader.flush();
-							continue;
-							
-						}
-						continue;
-						
-
-					}
+				String resp = response(request);
+				//System.out.println(resp);
+				outClient.println(resp);
+				/*
+				File res = fileToReturn(request);
+				byte[] payLoad = Files.readAllBytes(res.toPath());
+				outHeader.write(payLoad);
 				*/
-
-					
-					//test to see if threads work--delete later
-					outClient.println("Valid request");
-					
-				}
-
 			}
 			catch (Exception e) {
-				outClient.println("HTTP/1.0 500 Internal Server Error");
-				//System.exit(0);
+				System.exit(0);
 			}
 		}
 	}
@@ -247,8 +80,16 @@ public class PartialHTTP1Server implements Runnable{
 					//worker.run(); 
 					System.out.println("Thread size: " + threads.size());
 					//worker.run(); 
-
-					
+	
+					//if there are no more threads 
+					//respond with 503 
+					/*
+					if (threads.size() == 50) {
+						outToClient.println("503 Service Unavailable");
+						client.close()
+						
+					}
+					*/
 				}
 				catch(IOException i) { 
 					System.out.println(i); 
@@ -263,7 +104,134 @@ public class PartialHTTP1Server implements Runnable{
 		}  
 	}
 
+	static File fileToReturn (String request) {
+		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
+						
+		String method = tokens.nextToken(); 
 
+		//parse file part of request e.g. /index.html
+		String file = tokens.nextToken();  
+		StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
+		String fileName = files.nextToken(); //get file token
+		//get current directory 
+		String crntDir = System.getProperty("user.dir");
+		StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
+		ArrayList<String> fileNames = getFileList(crntDir); //list of file names
+		ArrayList<File> actualFiles = getFiles(crntDir); //list of files 
+		File f = fetchFile(fileName, actualFiles); 
+		return f; 
+	}
+
+	static String response(String request) {
+		//System.out.println(request);
+		//parse request 
+		//String request = inStream.readUTF(); 
+		//tokenize request into 
+		//method, file, protocol 
+		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
+						
+		String method = tokens.nextToken(); 
+
+		//parse file part of request e.g. /index.html
+		String file = tokens.nextToken();  
+		StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
+		String fileName = files.nextToken(); //get file token
+					
+		//parse protocol to get protocol name and version
+		String protocol = tokens.nextToken();
+
+		//400 Bad Request
+		//if no version is specified...
+		if (protocol.length() != 8) {
+			//System.out.println("yes");
+			return "HTTP/1.0 400 Bad Request";
+						
+		} 	
+		StringTokenizer protocolData = new StringTokenizer(protocol, "/");
+		String http = protocolData.nextToken();
+
+		//System.out.println("version: " + protocolData.nextToken());
+					
+		String version = protocolData.nextToken();
+					
+					
+		//check if valid request 
+		//check if parent directory of server matches folderName
+					
+		//NEED TO FIX LOGIC--thread needs to sleep?
+
+		//check if valid request but no command support 
+		//respond with "501 Not Implemented"
+		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
+			&& (version.equals("1.0")))) {
+			System.out.println("command not implemented");
+			return "HTTP/1.0 501 Not Implemented";
+						
+		}
+
+		//general bad requests 
+		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
+			&& (!version.equals("1.0")))) {
+			return "HTTP/1.0 400 Bad Request";
+						
+		}
+
+		//check if version # is 1.0--if greater than 1.0, 
+		//respond with "505 HTTP Version Not Supported"
+		if ((method.equals("GET")) || (method.equals("POST")) || (method.equals("HEAD"))) {
+			//System.out.println("we are here");
+			if (!version.equals("1.0")) {
+				System.out.println("version is not supported");
+				//System.out.println(protocol);
+				return "HTTP/1.0 505 HTTP Version Not Supported";	
+			}
+						
+		}
+
+		//get current directory 
+		String crntDir = System.getProperty("user.dir");
+		StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
+
+		//walk through folder and check for file 
+		//boolean inDir = false; 
+	
+		//if file in folder inDir = true 
+		//if GET command and file in folder...
+		ArrayList<String> fileNames = getFileList(crntDir); //list of file names
+		ArrayList<File> actualFiles = getFiles(crntDir); //list of files 
+		boolean inDir = fileNames.contains(fileName); //check if requested file is in directory
+
+		String separator = System.getProperty("line.separator");
+		SimpleDateFormat date = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
+		//date.setTimeZone(TimeZone.getTimeZone("GMT"));
+		//System.out.println(inDir);
+		String status;
+		String allow = "Allow: GET, HEAD, POST\r\n";
+		String contentEncoding = "Content-Encoding: identity"; //x-gzip, zip 
+		String contentLength;
+		String contentType;
+		String expires; 
+		String lastMod;
+		if ((method.equals("GET") || method.equals("POST")) && inDir) {
+			File resource = fetchFile(fileName, actualFiles); //fetch the file
+			if (fileName.contains("html") || fileName.contains("txt")) {
+				status = "HTTP/1.0 200 OK \r\n";
+				contentType = "Content-Type: text/html \r\n";
+				contentLength = "Content-Length: " + Long.toString(resource.length()) + " \r\n";
+				//change format--currently in seconds  
+				lastMod = "Last-Modified: " + date.format(resource.lastModified()) + " \r\n";
+				String header = status + allow + contentLength + contentType + lastMod + contentEncoding; 
+				System.out.println(resource.getPath().toString()); 
+				return header;  	
+			}
+						
+		}
+
+		if(inDir == false) {
+			return "HTTP/1.0 404 Not Found";
+		}
+		return "";
+	}
 
 	static File fetchFile(String name, ArrayList<File> files) {
 		for (int i = 0; i < files.size(); i++) {
@@ -349,82 +317,10 @@ public class PartialHTTP1Server implements Runnable{
 
         return filez; 
     }
-				/*Method to return the content type of the file
-				@param Extension on the file 
-				@return Content Type
-				**/
-				private static String getcontentType(String ext){
-					String contentType = "";
-					switch(ext){
-					case "html":
-					contentType = "text/html";
-					break;
-					case "txt":
-					contentType = "text/html";
-					break;
-					case "gif":
-					contentType = "image/gif";
-					break;
-					case "jpeg":
-					contentType = "image/jpeg";
-					break;
-					case "png":
-					contentType = "image/png";
-					break;
-					case "pdf":
-					contentType = "application/pdf";
-					break;
-					case "gzip":
-					contentType = "application/x-gzip";
-					break;
-					case "zip":
-					contentType = "application/zip";
-					break;
-					default:
-					contentType = "application/octet-stream";
-					}
-					return contentType;
-				}
-
-				/*Method to create the Header 
-				@param File to extract information from
-				@return The header information
-				**/
-				
-
-				private static String getHeader(File file, String ext){
-					
-					String header = "";
-					String status = "HTTP/1.0 200 OK\r";
-					String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
-					String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
-					String contentEncoding = "identity\r" + "\n";
-					
-					String date = "Sat, 21 Jul 2021 10:00 GMT";
-					Date expDate = new Date(date);
-					SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
-				
-
-					String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
-
-					date = s.format(expDate);
-					String expires = "Expires: " + date + "\r" + "\n";
-					header = status + contentType + contentLength + contentEncoding + lastModified + expires;
-					return header;
-
-				}
-
 
 	//modify to take command-line input
 	public static void main(String[] args) {
-		//try{
-		//int port = Integer.parseInt(args[0]);
-		//}
-		//catch (NumberFormatException e){
-		//System.out.println(e + "Please enter a valid port number");
-		//}
-		//PartialHTTP1Server server = new PartialHTTP1Server(port);
-		PartialHTTP1Server server = new PartialHTTP1Server(5000);		
+		PartialHTTP1Server server = new PartialHTTP1Server(5000);
 	}
 }
 
