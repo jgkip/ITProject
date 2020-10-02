@@ -1,23 +1,21 @@
-import java.net.*; 
+import java.lang.*;
+import java.net.*;
 import java.io.*;
-import java.util.StringTokenizer;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.ArrayList;
+import java.util.concurrent.*;
+import java.nio.file.*;
 import java.text.SimpleDateFormat;
+import java.util.*;
 import java.text.ParseException;
-import java.util.Date;
 
 public class PartialHTTP1Server {
 
 	private ArrayList<WorkerThread> threads = new ArrayList<>(50); //list of threads; once full 
-
-	private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size 5
+	private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size 
 
 	//worker thread to handle requests
 	private static class WorkerThread implements Runnable {
-		private Socket clientSocket; 
 
+		private Socket clientSocket; 
 		private DataInputStream inStream; 
 		private PrintWriter outClient;
 		private DataOutputStream outHeader; 
@@ -122,13 +120,17 @@ public class PartialHTTP1Server {
 	}
 
 	static String response(String request) {
-		//System.out.println(request);
+		System.out.println(request);
 		//parse request 
 		//String request = inStream.readUTF(); 
 		//tokenize request into 
 		//method, file, protocol 
-		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
-						
+		
+		boolean ifModifiedSince = false;
+		if(request.contains("If-Modified-Since")){
+			ifModifiedSince = true;
+		}
+		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE				
 		String method = tokens.nextToken(); 
 
 		//parse file part of request e.g. /index.html
@@ -216,13 +218,42 @@ public class PartialHTTP1Server {
 					head = status + allow + getHeader(resource, fileExt);
 					return head;
 				}
-				// Perform GET command
+
+				//Perform GET command
+				//If the requst includes an "If-Modified-Since" field, Perform a Conditional GET.
 				if (method.equals("GET") && inDir) {
 					File resource = fetchFile(fileName, actualFiles); //fetch the file
+					if(ifModifiedSince == true){
+						//Check when the file was last modified
+						SimpleDateFormat f = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
+						f.setTimeZone(TimeZone.getTimeZone("GMT"));
+						String lastModDate = f.format(resource.lastModified());
+						//Get If-Modified-Since date
+						String temp = request.substring(request.indexOf(':')+2);
+						String modDate = f.format(temp);
+
+						//Convert Strings to Dates for Comparison
+						try{
+							Date date1 = f.parse(lastModDate);
+							Date date2 = f.parse(modDate);
+							//If the last modified date is before the necessary "If-Modified-Since" date, do not modify.
+							if(date1.compareTo(date2) < 0 ){
+								String date = "Sat, 21 Jul 2021 10:00 GMT";
+								Date expDate = new Date(date);
+								date = f.format(expDate);
+								String expires = "Expires: " + date + "\r" + "\n";
+								return "HTTP/1.0 304 Not Modified\r" + expires;
+								}
+						}
+						catch(ParseException e){
+							System.out.println("Error: Invalid Dates");
+						}
+					}
 					String status = "HTTP/1.0 200 OK\r";
 					String allow = "Allow: GET, HEAD\r";
 					head = status + allow + getHeader(resource, fileExt);
 					System.out.println(resource.getPath().toString()); 
+					
 					return head;
 				}
 				// Perform POST command DO NOT ADD ALLOW
@@ -269,9 +300,9 @@ public class PartialHTTP1Server {
             
         // recursion for main directory 
         walkDir(arr,++index, level, f); 
-    } 
+	} 
 
-    static void findFiles(File[] arr,int index,int level, ArrayList<File> f) { 
+	static void findFiles(File[] arr,int index,int level, ArrayList<File> f) { 
         // terminate condition 
         if(index == arr.length) 
             return; 
@@ -291,110 +322,126 @@ public class PartialHTTP1Server {
             
         // recursion for main directory 
         findFiles(arr,++index, level, f); 
-    } 
+	} 
 
-    static ArrayList<File> getFiles(String dirName) {
-    	File maindir = new File(dirName);
+	static ArrayList<File> getFiles(String dirName) {
+    		File maindir = new File(dirName);
 		ArrayList<File> filez = new ArrayList<File>(); 
 
 		if (maindir.exists() && maindir.isDirectory()) { 
-            
-            File arr[] = maindir.listFiles(); 
-                       
-            findFiles(arr,0,0, filez); 
-          
-        }
+            	     File arr[] = maindir.listFiles(); 
+                     findFiles(arr,0,0, filez); 
+          	 }
 
         return filez; 
-    }
+   	 }
 
-    //method that gets list of files in directory
-    static ArrayList<String> getFileList(String dirName) {
-    	File maindir = new File(dirName);
+   	 //method that gets list of files in directory
+    	static ArrayList<String> getFileList(String dirName) {
+    		File maindir = new File(dirName);
 		ArrayList<String> filez = new ArrayList<String>(); 
 
 		if (maindir.exists() && maindir.isDirectory()) { 
-            
-            File arr[] = maindir.listFiles(); 
-                       
-            walkDir(arr,0,0, filez); 
-          
-        }
+          	  File arr[] = maindir.listFiles(); 
+         	  walkDir(arr,0,0, filez); 
+       		 }
 
         return filez; 
-    }
+   	}
 
-				/*Method to return the content type of the file
-				@param Extension on the file 
-				@return Content Type
-				**/
-				private static String getcontentType(String ext){
-					String contentType = "";
-					switch(ext){
-					case "html":
-					case "txt":
-					case "text":
-					contentType = "text/html";
-					break;
-					case "gif":
-					contentType = "image/gif";
-					break;
-					case "jpeg":
-					contentType = "image/jpeg";
-					break;
-					case "png":
-					contentType = "image/png";
-					break;
-					case "pdf":
-					contentType = "application/pdf";
-					break;
-					case "gzip":
-					contentType = "application/x-gzip";
-					break;
-					case "zip":
-					contentType = "application/zip";
-					break;
-					default:
-					contentType = "application/octet-stream";
-					}
-					return contentType;
-				}
+	/*Method to return the content type of the file
+	@param Extension on the file 
+	@return Content Type
+	**/
+	private static String getcontentType(String ext){
+		String contentType = "";
+		switch(ext){
+			case "html":
+			case "txt":
+			case "text":
+			case "c":
+			case "java":
+			case "c++":
+			contentType = "text/html";
+			break;
+			case "gif":
+			contentType = "image/gif";
+			break;
+			case "jpeg":
+			contentType = "image/jpeg";
+			break;
+			case "png":
+			contentType = "image/png";
+			break;
+			case "pdf":
+			contentType = "application/pdf";
+			break;
+			case "gzip":
+			contentType = "application/x-gzip";
+			break;
+			case "zip":
+			contentType = "application/zip";
+			break;
+			default:
+			contentType = "application/octet-stream";
+			}
+			return contentType;
+		}
 
-				/*Method to create the Header 
-				@param File to extract information from
-				@return The header information
-				**/
-				private static String getHeader(File file, String ext){
+		/*Method to create the Header 
+		@param File to extract information from
+		@return The header information
+		**/
+		private static String getHeader(File file, String ext){
 					
-					String header = "";
-					String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
-					String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
-					String contentEncoding = "Content-Encoding: identity\r" + "\n";
+			String header = "";
+			String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
+			String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
+			String contentEncoding = "Content-Encoding: identity\r" + "\n";
 					
-					String date = "Sat, 21 Jul 2021 10:00 GMT";
-					Date expDate = new Date(date);
-					SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
-				
+			String date = "Sat, 21 Jul 2021 10:00 GMT";
+			Date expDate = new Date(date);
+			SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
+			s.setTimeZone(TimeZone.getTimeZone("GMT"));
 
-					String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
+			String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
 
-					date = s.format(expDate);
-					String expires = "Expires: " + date + "\r" + "\n";
-					header = contentType + contentLength + contentEncoding + lastModified + expires;
-					return header;
+			date = s.format(expDate);
+			String expires = "Expires: " + date + "\r" + "\n";
+			header =  contentEncoding + contentLength + contentType + expires + lastModified;
+			return header;
+			
+		}
 
-				}
-
-
-	//modify to take command-line input
 	public static void main(String[] args) {
-		//try{
-		//int port = Integer.parseInt(args[0]);
-		//}
-		//catch (NumberFormatException e){
-		//System.out.println(e + "Please enter a valid port number");
-		//}
-		//PartialHTTP1Server server = new PartialHTTP1Server(port);
-		PartialHTTP1Server server = new PartialHTTP1Server(5000);		
+		if(args.length != 1){
+			System.out.println("Please enter in the format: <PartialHTTP1Server> <port number>");
+			return;
+		}
+		int port = 0;
+		String holder = "";
+		try{
+			holder = args[0];
+			if(holder.length() < 1 ){
+			System.out.println("Please enter in the format: <PartialHTTP1Server> <port number>");
+			return;
+			}
+		}
+		catch(NullPointerException e){
+			System.out.println("Please enter in the format: <PartialHTTP1Server> <port number>");
+			return;	
+		}
+		try{
+			port = Integer.parseInt(holder);
+			if(port == -1){
+			System.out.println("Please enter in the format: <PartialHTTP1Server> <port number>");
+			return;
+			}
+		}
+		catch (NumberFormatException e){
+			System.out.println("Please enter in the format: <PartialHTTP1Server> <port number>");
+			return;
+		}
+		PartialHTTP1Server server = new PartialHTTP1Server(port);		
 	}
 }
