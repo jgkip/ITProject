@@ -133,7 +133,7 @@ public class PartialHTTP1Server {
 		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE				
 
 		if (tokens.countTokens() != 3) {
-			return "HTTP/1.0 400 Bad Request";
+			return "HTTP/1.0 400 Bad Request\r\n";
 		}
 
 		String method = tokens.nextToken(); 
@@ -171,13 +171,13 @@ public class PartialHTTP1Server {
 
 		//check if valid request but no implementation
         if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
-				return "HTTP/1.0 501 Not Implemented";      
+				return "HTTP/1.0 501 Not Implemented\r\n";      
         }
 
 		//general bad requests 
 		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
 			&& (!version.equals("1.0")))) {
-			return "HTTP/1.0 400 Bad Request";
+			return "HTTP/1.0 400 Bad Request\r\n";
 						
 		}
 
@@ -188,7 +188,7 @@ public class PartialHTTP1Server {
 			if (!version.equals("1.0")) {
 				System.out.println("version is not supported");
 				//System.out.println(protocol);
-				return "HTTP/1.0 505 HTTP Version Not Supported";	
+				return "HTTP/1.0 505 HTTP Version Not Supported\r\n";	
 			}
 						
 		}
@@ -265,7 +265,7 @@ public class PartialHTTP1Server {
 				}
 
 		if(inDir == false) {
-			return "HTTP/1.0 404 Not Found";
+			return "HTTP/1.0 404 Not Found\r\n";
 		}
 		return "";
 	}
