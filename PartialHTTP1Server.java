@@ -185,7 +185,7 @@ public class PartialHTTP1Server {
     }
 
     //check if valid command but no implementation
-    if ((!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) && 
+    if ((!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) || 
       (method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK"))) {
         return "HTTP/1.0 501 Not Implemented\r\n";      
     }
