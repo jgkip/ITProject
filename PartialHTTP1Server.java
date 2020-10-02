@@ -170,14 +170,9 @@ public class PartialHTTP1Server {
 		//NEED TO FIX LOGIC--thread needs to sleep?
 
 		//check if valid request but no implementation
-                 if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
-				if(method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK")){
-                      			return "501 Not Implemented";
-                      		}
-                       		 else{
-                       			return "400 Bad Request";
-                       		 }       
-                  }
+        if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
+				return "HTTP/1.0 501 Not Implemented";      
+        }
 
 		//general bad requests 
 		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
