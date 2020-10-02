@@ -120,7 +120,7 @@ public class PartialHTTP1Server {
 	}
 
 	static String response(String request) {
-		System.out.println(request);
+		
 		//parse request 
 		//String request = inStream.readUTF(); 
 		//tokenize request into 
@@ -131,6 +131,11 @@ public class PartialHTTP1Server {
 			ifModifiedSince = true;
 		}
 		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE				
+
+		if (tokens.countTokens() != 3) {
+			return "HTTP/1.0 400 Bad Request\r\n";
+		}
+
 		String method = tokens.nextToken(); 
 
 		//parse file part of request e.g. /index.html
@@ -148,7 +153,7 @@ public class PartialHTTP1Server {
 		//if no version is specified...
 		if (protocol.length() != 8) {
 			//System.out.println("yes");
-			return "HTTP/1.0 400 Bad Request";
+			return "HTTP/1.0 400 Bad Request\r\n";
 						
 		} 	
 		StringTokenizer protocolData = new StringTokenizer(protocol, "/");
@@ -165,19 +170,14 @@ public class PartialHTTP1Server {
 		//NEED TO FIX LOGIC--thread needs to sleep?
 
 		//check if valid request but no implementation
-                 if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
-				if(method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK")){
-                      			return "501 Not Implemented";
-                      		}
-                       		 else{
-                       			return "400 Bad Request";
-                       		 }       
-                  }
+        if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
+				return "HTTP/1.0 501 Not Implemented\r\n";      
+        }
 
 		//general bad requests 
 		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
 			&& (!version.equals("1.0")))) {
-			return "HTTP/1.0 400 Bad Request";
+			return "HTTP/1.0 400 Bad Request\r\n";
 						
 		}
 
@@ -188,7 +188,7 @@ public class PartialHTTP1Server {
 			if (!version.equals("1.0")) {
 				System.out.println("version is not supported");
 				//System.out.println(protocol);
-				return "HTTP/1.0 505 HTTP Version Not Supported";	
+				return "HTTP/1.0 505 HTTP Version Not Supported\r\n";	
 			}
 						
 		}
@@ -213,8 +213,8 @@ public class PartialHTTP1Server {
 				// Perform HEAD command
 				if (method.equals("HEAD") && inDir) {
 					File resource = fetchFile(fileName, actualFiles); //fetch the file
-					String status = "HTTP/1.0 200 OK\r\n";
-					String allow = "Allow: GET, HEAD\r\n";
+					String status = "HTTP/1.0 200 OK\r";
+					String allow = "Allow: GET, HEAD\r";
 					head = status + allow + getHeader(resource, fileExt);
 					return head;
 				}
@@ -249,8 +249,8 @@ public class PartialHTTP1Server {
 							System.out.println("Error: Invalid Dates");
 						}
 					}
-					String status = "HTTP/1.0 200 OK\r\n";
-					String allow = "Allow: GET, POST, HEAD\r\n";
+					String status = "HTTP/1.0 200 OK\r";
+					String allow = "Allow: GET, HEAD\r";
 					head = status + allow + getHeader(resource, fileExt);
 					System.out.println(resource.getPath().toString()); 
 					
@@ -265,7 +265,7 @@ public class PartialHTTP1Server {
 				}
 
 		if(inDir == false) {
-			return "HTTP/1.0 404 Not Found";
+			return "HTTP/1.0 404 Not Found\r\n";
 		}
 		return "";
 	}
@@ -349,41 +349,34 @@ public class PartialHTTP1Server {
         return filez; 
    	}
 
-	/*Method to return the content type of the file
-	@param Extension on the file 
-	@return Content Type
-	**/
+	//return content type for a file
 	private static String getcontentType(String ext){
 		String contentType = "";
 		switch(ext){
 			case "html":
 			case "txt":
-			case "text":
-			case "c":
-			case "java":
-			case "c++":
-			contentType = "text/html";
-			break;
+				contentType = "text/html";
+				break;
 			case "gif":
-			contentType = "image/gif";
-			break;
+				contentType = "image/gif";
+				break;
 			case "jpeg":
-			contentType = "image/jpeg";
-			break;
+				contentType = "image/jpeg";
+				break;
 			case "png":
-			contentType = "image/png";
-			break;
+				contentType = "image/png";
+				break;
 			case "pdf":
-			contentType = "application/pdf";
-			break;
+				contentType = "application/pdf";
+				break;
 			case "gzip":
-			contentType = "application/x-gzip";
-			break;
+				contentType = "application/x-gzip";
+				break;
 			case "zip":
-			contentType = "application/zip";
-			break;
+				contentType = "application/zip";
+				break;
 			default:
-			contentType = "application/octet-stream";
+				contentType = "application/octet-stream";
 			}
 			return contentType;
 		}
@@ -445,3 +438,5 @@ public class PartialHTTP1Server {
 		PartialHTTP1Server server = new PartialHTTP1Server(port);		
 	}
 }
+
+
