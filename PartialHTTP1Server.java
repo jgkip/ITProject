@@ -31,18 +31,19 @@ public class PartialHTTP1Server {
     }
     public void run() {
       try { 
-        System.out.println("Processing client request...");
+        //System.out.println("Processing client request...");
         //outClient.println("Welcome to server");
         int lines = 0; 
-        String request = inStream.readLine();
+        //String request = inStream.readLine();
+        String request = "";
         //System.out.println(request);
         File resource = null; 
-        /*
+        
         while (lines != 1) {
-          request = inStream.readUTF(); 
+          request = inStream.readLine(); 
           lines++;
         }
-        */
+        System.out.println(request);
         String resp = response(request);
         System.out.println(resp);
         outClient.println(resp);
@@ -146,14 +147,21 @@ public class PartialHTTP1Server {
 
     //parse file part of request e.g. /index.html
     String file = tokens.nextToken();  
+    //System.out.println("file token: " + file);
     StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
     String fileName = files.nextToken(); //get file token
+    System.out.println("file name: " + fileName);
     StringTokenizer fileParse = new StringTokenizer(fileName, ".");
     String fn = fileParse.nextToken();
     String fileExt = fileParse.nextToken(); 
           
     //parse protocol to get protocol name and version
     String protocol = tokens.nextToken();
+
+    StringTokenizer protocolData = new StringTokenizer(protocol, "/");
+    String http = protocolData.nextToken();          
+    String version = protocolData.nextToken();        
+    double versionInt = Double.parseDouble(version);
 
     //400 Bad Request
     //if no version is specified...
@@ -162,22 +170,27 @@ public class PartialHTTP1Server {
       return "HTTP/1.0 400 Bad Request\r\n";
             
     }   
-    StringTokenizer protocolData = new StringTokenizer(protocol, "/");
-    String http = protocolData.nextToken();          
-    String version = protocolData.nextToken();        
-    double versionInt = Double.parseDouble(version);
+
+    if ((method.equals("get") || method.equals("head") || method.equals("post")) && version.equals("1.0")) {
+      return "HTTP/1.0 400 Bad Request\r\n";
+    }
+
+    if (method.equals("KICK") && version.equals("1.0")) {
+      return "HTTP/1.0 400 Bad Request\r\n";
+    }
+
+    if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
+      && (!version.equals("1.0")))) {
+      return "HTTP/1.0 400 Bad Request\r\n";       
+    }
 
     //check if valid command but no implementation
-    if ((!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0")))) {
+    if ((!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) && 
+      (method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK"))) {
         return "HTTP/1.0 501 Not Implemented\r\n";      
     }
 
     //general bad requests 
-    if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
-      && (!version.equals("1.0")))) {
-      return "HTTP/1.0 400 Bad Request\r\n";
-            
-    }
 
     //check if version # is 1.0--if greater than 1.0, 
     //respond with "505 HTTP Version Not Supported"
@@ -194,14 +207,21 @@ public class PartialHTTP1Server {
   
     //if file in folder inDir = true 
     //if GET command and file in folder...
-    ArrayList<String> fileNames = getFileList(crntDir); //list of file names
+    ArrayList<String> fileNames = getFileList(crntDir);
+    ArrayList<String> direct = getDirList(crntDir); //list of file names
+    System.out.println("file list: " + fileNames);
+    System.out.println("dir list: " + direct);
     ArrayList<File> actualFiles = getFiles(crntDir); //list of files 
     boolean inDir = fileNames.contains(fileName); //check if requested file is in directory
+    boolean findDir = direct.contains(fileName);
 
     String separator = System.getProperty("line.separator");
     String head;
 
-        
+    if (file.contains("secret")) {
+      return "HTTP/1.0 403 Forbidden\r\n";
+    }
+
     // Perform HEAD command
     if (method.equals("HEAD") && inDir) {
       File resource = fetchFile(fileName, actualFiles); //fetch the file
@@ -213,7 +233,7 @@ public class PartialHTTP1Server {
 
     //Perform GET command
     //If the requst includes an "If-Modified-Since" field, Perform a Conditional GET.
-    if (method.equals("GET") && inDir) {
+    if ((method.equals("GET") && inDir)) {
       File resource = fetchFile(fileName, actualFiles); //fetch the file
       if(ifModifiedSince == true){
         //Check when the file was last modified
@@ -285,6 +305,7 @@ public class PartialHTTP1Server {
         }
         // for sub-directories 
         else if(arr[index].isDirectory()) { 
+            //f.add(arr[index].getName());
             //System.out.println("[" + arr[index].getName() + "]"); 
                
             // recursion for sub-directories 
@@ -294,6 +315,35 @@ public class PartialHTTP1Server {
         // recursion for main directory 
         walkDir(arr,++index, level, f); 
   } 
+
+  private static void dirN(File[] arr,int index,int level, ArrayList<String> d) { 
+        // terminate condition 
+        if(index == arr.length) 
+            return; 
+           
+        // for files 
+        if(arr[index].isDirectory()) { 
+            d.add(arr[index].getName());
+            //System.out.println("[" + arr[index].getName() + "]"); 
+               
+            // recursion for sub-directories 
+            dirN(arr[index].listFiles(), 0, level + 1, d); 
+        } 
+            
+        // recursion for main directory 
+        dirN(arr,++index, level, d); 
+  } 
+  private static ArrayList<String> getDirList(String dirName) {
+        File maindir = new File(dirName);
+        ArrayList<String> dirs = new ArrayList<String>(); 
+
+        if (maindir.exists() && maindir.isDirectory()) { 
+              File arr[] = maindir.listFiles(); 
+              dirN(arr,0,0, dirs); 
+        }
+
+        return dirs; 
+  }
 
   private static void findFiles(File[] arr,int index,int level, ArrayList<File> f) { 
         // terminate condition 
