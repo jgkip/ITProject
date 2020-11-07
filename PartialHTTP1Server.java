@@ -8,142 +8,159 @@ import java.util.*;
 import java.text.ParseException;
 
 public class PartialHTTP1Server {
-
-  private ArrayList<WorkerThread> threads = new ArrayList<>(50); //list of threads; once full 
-  private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size 
+  private ArrayList<WorkerThread> threads = new ArrayList<>(50); //list of threads; once full
+  private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size
 
   //worker thread to handle requests
   private static class WorkerThread implements Runnable {
 
-    private Socket clientSocket; 
-    private DataInputStream inStream; 
+    private Socket clientSocket;
+    private DataInputStream inStream;
     private PrintWriter outClient;
-    private DataOutputStream outHeader; 
+    private DataOutputStream outHeader;
     private PrintStream ps;
 
-    //thread class to handle requests 
+    //thread class to handle requests
     public WorkerThread(Socket clientSocket) throws IOException {
-      this.clientSocket = clientSocket; 
+      this.clientSocket = clientSocket;
       inStream = new DataInputStream(clientSocket.getInputStream());
       outClient = new PrintWriter(clientSocket.getOutputStream(), true);
       outHeader = new DataOutputStream(clientSocket.getOutputStream());  
-      //ps = new PrintStream(clientSocket.getOutputStream(), true);
     }
     public void run() {
-      try { 
-        //System.out.println("Processing client request...");
-        //outClient.println("Welcome to server");
-        int lines = 0; 
-        //String request = inStream.readLine();
-        String request = "";
-        //System.out.println(request);
-        File resource = null; 
-        
-        while (lines != 1) {
-          request = inStream.readLine(); 
-          lines++;
+      try {
+        try {
+          //String request = inStream.readLine();
+          String request = "";
+          String modifyDate = "";
+          //System.out.println(request);
+          File resource = null;
+          int lines = 0;
+          while (lines != 2) {
+       if(lines == 0){
+             request = inStream.readLine();
+       }
+       else if (lines == 1) {
+         modifyDate = inStream.readLine();
+       }
+            lines++;
+          }
+          System.out.println(request);
+          String resp = response(request, modifyDate);
+          System.out.println(resp);
+          outClient.println(resp);
+          //ps.println(resp);
+          //if valid response send payload
+          if (resp.contains("200 OK")) {
+              File res = fileToReturn(request);
+              byte[] payLoad = Files.readAllBytes(res.toPath());
+              outHeader.write(payLoad);
+              outHeader.flush();
+          }
         }
-        System.out.println(request);
-        String resp = response(request);
-        System.out.println(resp);
-        outClient.println(resp);
-        //ps.println(resp);
-        //if valid response send payload 
-        if (resp.contains("200 OK")) {
-            File res = fileToReturn(request);
-            byte[] payLoad = Files.readAllBytes(res.toPath());
-            outHeader.write(payLoad);
-            outHeader.flush(); 
+        catch (Exception e) {
+          System.out.println(e);
         }
+        //outClient.close();
       }
-      catch (Exception e) {
-        System.exit(0);
+      finally {
+        outClient.close();
+        try {
+          inStream.close();
+          outHeader.close();
+        }
+        catch (IOException x) {
+          System.out. println(x);
+        }
       }
     }
+
   }
 
   public PartialHTTP1Server(int port) {
     try {
 
-      //create server socket 
-      ServerSocket serverSocket = new ServerSocket(port); 
+      //create server socket
+      ServerSocket serverSocket = new ServerSocket(port);
       System.out.println("Server started");
-      //main server loop 
+      //main server loop
       while(true) {
         //create threads here
-        //do other fancy stuff 
+        //do other fancy stuff
         try {
-          //create client socket 
-          Socket client = serverSocket.accept(); 
-          //for each client connection create thread and 
-          //add to thread list 
+          //create client socket
+          Socket client = serverSocket.accept();
+          //for each client connection create thread and
+          //add to thread list
           WorkerThread worker = new WorkerThread(client);
           threads.add(worker);
           //System.out.println("Thread size: " + threads.size());
-          pool.execute(worker);
-          //worker.run(); 
+          //pool.execute(worker);
+          worker.run();
           System.out.println("Thread size: " + threads.size());
-          //worker.run(); 
-  
-          //if there are no more threads 
-          //respond with 503 
+          //worker.run();
+   
+          //if there are no more threads
+          //respond with 503
           /*
           if (threads.size() == 50) {
             outToClient.println("503 Service Unavailable");
             client.close()
-            
+           
           }
           */
         }
-        catch(IOException i) { 
-          System.out.println(i); 
+        catch(IOException i) {
+          System.out.println(i);
         }  
-      } 
-      //dos.println("Server closing...");
-      //System.out.println("Server closing...");
-      //client.close();
+      }
     }
-    catch(IOException i) { 
-          System.out.println(i); 
+    catch(IOException i) {
+          System.out.println(i);
     }  
   }
 
+  //from request get file to return 
+  //@Param request is the request from client 
   private static File fileToReturn (String request) {
     StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
-            
-    String method = tokens.nextToken(); 
+           
+    String method = tokens.nextToken();
 
     //parse file part of request e.g. /index.html
     String file = tokens.nextToken();  
     StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
     String fileName = files.nextToken(); //get file token
-    //get current directory 
+    //get current directory
     String crntDir = System.getProperty("user.dir");
     StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
     ArrayList<String> fileNames = getFileList(crntDir); //list of file names
-    ArrayList<File> actualFiles = getFiles(crntDir); //list of files 
-    File f = fetchFile(fileName, actualFiles); 
-    return f; 
+    ArrayList<File> actualFiles = getFiles(crntDir); //list of files
+    File f = fetchFile(fileName, actualFiles);
+    return f;
   }
 
-  private static String response(String request) {
-    
-    //parse request 
-    //String request = inStream.readUTF(); 
-    //tokenize request into 
-    //method, file, protocol 
-    
+
+  /* method that parses request and returns the correct response
+  @Param request is the request from client 
+  @Param modify is the modifyDate
+  **/ 
+  private static String response(String request, String modifyDate) {
+    if (request == null) {
+      return "HTTP/1.0 400 Bad Request\r\n";
+    }
+      
     boolean ifModifiedSince = false;
-    if(request.contains("If-Modified-Since")){
+    if(modifyDate.contains("If-Modified-Since")){
       ifModifiedSince = true;
     }
-    StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE        
+    StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE     
 
     if (tokens.countTokens() != 3) {
       return "HTTP/1.0 400 Bad Request\r\n";
     }
 
-    String method = tokens.nextToken(); 
+    String method = tokens.nextToken();
 
     //parse file part of request e.g. /index.html
     String file = tokens.nextToken();  
@@ -153,14 +170,14 @@ public class PartialHTTP1Server {
     System.out.println("file name: " + fileName);
     StringTokenizer fileParse = new StringTokenizer(fileName, ".");
     String fn = fileParse.nextToken();
-    String fileExt = fileParse.nextToken(); 
-          
+    String fileExt = fileParse.nextToken();
+         
     //parse protocol to get protocol name and version
     String protocol = tokens.nextToken();
 
     StringTokenizer protocolData = new StringTokenizer(protocol, "/");
-    String http = protocolData.nextToken();          
-    String version = protocolData.nextToken();        
+    String http = protocolData.nextToken();        
+    String version = protocolData.nextToken();     
     double versionInt = Double.parseDouble(version);
 
     //400 Bad Request
@@ -168,7 +185,7 @@ public class PartialHTTP1Server {
     if (protocol.length() != 8) {
       //System.out.println("yes");
       return "HTTP/1.0 400 Bad Request\r\n";
-            
+           
     }   
 
     if ((method.equals("get") || method.equals("head") || method.equals("post")) && version.equals("1.0")) {
@@ -179,41 +196,44 @@ public class PartialHTTP1Server {
       return "HTTP/1.0 400 Bad Request\r\n";
     }
 
-    if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD")))) 
+    if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD"))))
       && (!version.equals("1.0")))) {
-      return "HTTP/1.0 400 Bad Request\r\n";       
+      return "HTTP/1.0 400 Bad Request\r\n";     
     }
 
-    //check if valid command but no implementation
-    if ((!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) || 
-      (method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK"))) {
-        return "HTTP/1.0 501 Not Implemented\r\n";      
+    //check if valid request but no implementation
+    if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
+        if(method.equals("DELETE") || method.equals("PUT") || method.equals("LINK") || method.equals("UNLINK")){
+                return "HTTP/1.0 501 Not Implemented\r\n";
+        }
+        return "HTTP/1.0 400 Bad Request\r\n";     
     }
 
-    //general bad requests 
 
-    //check if version # is 1.0--if greater than 1.0, 
+    //general bad requests
+
+    //check if version # is 1.0--if greater than 1.0,
     //respond with "505 HTTP Version Not Supported"
-    if (((method.equals("GET")) || (method.equals("POST")) || (method.equals("HEAD"))) && (versionInt > 1.0 || versionInt < 0.0))  {
-      return "HTTP/1.0 505 HTTP Version Not Supported\r\n"; 
+    if (((method.equals("GET")) || (method.equals("POST")) || (method.equals("HEAD"))) ){
+            if (versionInt > 1.0 ) {
+                return "HTTP/1.0 505 HTTP Version Not Supported\r\n";
+            }
+            if(versionInt < 1.0){
+                return "HTTP/1.0 400 Bad Request\r\n";
+            }
     }
 
-    //get current directory 
+    //get current directory
     String crntDir = System.getProperty("user.dir");
     StringTokenizer dirTokens = new StringTokenizer(crntDir, "\\");
 
-    //walk through folder and check for file 
-    //boolean inDir = false; 
-  
-    //if file in folder inDir = true 
+    //walk through folder and check for file
+    //if file in folder inDir = true
     //if GET command and file in folder...
     ArrayList<String> fileNames = getFileList(crntDir);
-    ArrayList<String> direct = getDirList(crntDir); //list of file names
-    System.out.println("file list: " + fileNames);
-    System.out.println("dir list: " + direct);
-    ArrayList<File> actualFiles = getFiles(crntDir); //list of files 
+    
+    ArrayList<File> actualFiles = getFiles(crntDir); //list of files
     boolean inDir = fileNames.contains(fileName); //check if requested file is in directory
-    boolean findDir = direct.contains(fileName);
 
     String separator = System.getProperty("line.separator");
     String head;
@@ -226,7 +246,7 @@ public class PartialHTTP1Server {
     if (method.equals("HEAD") && inDir) {
       File resource = fetchFile(fileName, actualFiles); //fetch the file
       String status = "HTTP/1.0 200 OK\r\n";
-      String allow = "Allow: GET, HEAD\r\n";
+      String allow = "Allow: GET, POST, HEAD\r\n";
       head = status + allow + getHeader(resource, fileExt);
       return head;
     }
@@ -241,7 +261,7 @@ public class PartialHTTP1Server {
         f.setTimeZone(TimeZone.getTimeZone("GMT"));
         String lastModDate = f.format(resource.lastModified());
         //Get If-Modified-Since date
-        String temp = request.substring(request.indexOf(':')+2);
+        String temp = modifyDate.substring(modifyDate.indexOf(':')+2);
         String modDate = f.format(temp);
 
         //Convert Strings to Dates for Comparison
@@ -262,12 +282,12 @@ public class PartialHTTP1Server {
         }
       }
       String status = "HTTP/1.0 200 OK\r\n";
-      String allow = "Allow: GET, HEAD\r\n";
+      String allow = "Allow: GET, POST, HEAD\r\n";
       head = status + allow + getHeader(resource, fileExt);
-      //System.out.println(resource.getPath().toString()); 
-          
+  
       return head;
     }
+
     // Perform POST command DO NOT ADD ALLOW
     if (method.equals("POST") && inDir) {
       File resource = fetchFile(fileName, actualFiles); //fetch the file
@@ -282,7 +302,7 @@ public class PartialHTTP1Server {
     return "";
   }
 
-  //helper method to fetch the file 
+  //helper method to fetch the file
   private static File fetchFile(String name, ArrayList<File> files) {
     for (int i = 0; i < files.size(); i++) {
       if (files.get(i).getName().equals(name)) {
@@ -292,101 +312,90 @@ public class PartialHTTP1Server {
     return null;
   }
 
-  //method to walk directory 
-  private static void walkDir(File[] arr,int index,int level, ArrayList<String> f) { 
-        // terminate condition 
-        if(index == arr.length) 
-            return; 
-           
-        // for files 
-        if(arr[index].isFile()) {
-            //System.out.println(arr[index].getName()); 
-            f.add(arr[index].getName());
-        }
-        // for sub-directories 
-        else if(arr[index].isDirectory()) { 
-            //f.add(arr[index].getName());
-            //System.out.println("[" + arr[index].getName() + "]"); 
-               
-            // recursion for sub-directories 
-            walkDir(arr[index].listFiles(), 0, level + 1, f); 
-        } 
-            
-        // recursion for main directory 
-        walkDir(arr,++index, level, f); 
-  } 
-
-  private static void dirN(File[] arr,int index,int level, ArrayList<String> d) { 
-        // terminate condition 
-        if(index == arr.length) 
-            return; 
-           
-        // for files 
-        if(arr[index].isDirectory()) { 
-            d.add(arr[index].getName());
-            //System.out.println("[" + arr[index].getName() + "]"); 
-               
-            // recursion for sub-directories 
-            dirN(arr[index].listFiles(), 0, level + 1, d); 
-        } 
-            
-        // recursion for main directory 
-        dirN(arr,++index, level, d); 
-  } 
-  private static ArrayList<String> getDirList(String dirName) {
-        File maindir = new File(dirName);
-        ArrayList<String> dirs = new ArrayList<String>(); 
-
-        if (maindir.exists() && maindir.isDirectory()) { 
-              File arr[] = maindir.listFiles(); 
-              dirN(arr,0,0, dirs); 
-        }
-
-        return dirs; 
+  //method to walk directory
+  /*@Param arr is an array of files
+  @Param index is the index of current file 
+  @Param level is the current level in directory
+  @Param ArrayList f collects file names
+  **/
+  private static void walkDir(File[] arr, int index, int level, ArrayList<String> f) {
+      // terminate condition
+      if(index == arr.length)
+          return;
+         
+      // for files
+      if(arr[index].isFile()) {
+          //System.out.println(arr[index].getName());
+          f.add(arr[index].getName());
+      }
+      // for sub-directories
+      else if(arr[index].isDirectory()) {
+          //f.add(arr[index].getName());
+          //System.out.println("[" + arr[index].getName() + "]");
+             
+          // recursion for sub-directories
+          walkDir(arr[index].listFiles(), 0, level + 1, f);
+      }
+         
+      // recursion for main directory
+      walkDir(arr,++index, level, f);
   }
 
-  private static void findFiles(File[] arr,int index,int level, ArrayList<File> f) { 
-        // terminate condition 
-        if(index == arr.length) 
-            return; 
-           
-        // for files 
-        if(arr[index].isFile()) {
-            f.add(arr[index]);
-        }
-        else if(arr[index].isDirectory()) { 
-            findFiles(arr[index].listFiles(), 0, level + 1, f); 
-        } 
-            
-        findFiles(arr,++index, level, f); 
-  } 
+  /*helper method used to find files 
+  @Param arr array of files 
+  @Param int index current index of File
+  @Param level is the level in the directory
+  @Param ArrayList f is used to collect the files 
+  **/
+  private static void findFiles(File[] arr, int index, int level, ArrayList<File> f) {
+      // terminate condition
+      if(index == arr.length)
+          return;
+         
+      // for files
+      if(arr[index].isFile()) {
+          f.add(arr[index]);
+      }
+      else if(arr[index].isDirectory()) {
+          findFiles(arr[index].listFiles(), 0, level + 1, f);
+      }
+         
+      findFiles(arr,++index, level, f);
+  }
 
+  /*method that gets actual files in directory dirName
+  @Param dirName is the name of the directory 
+  **/
   private static ArrayList<File> getFiles(String dirName) {
-        File maindir = new File(dirName);
-        ArrayList<File> filez = new ArrayList<File>(); 
+      File maindir = new File(dirName);
+      ArrayList<File> filez = new ArrayList<File>();
 
-        if (maindir.exists() && maindir.isDirectory()) { 
-              File arr[] = maindir.listFiles(); 
-              findFiles(arr,0,0, filez); 
-        }
+      if (maindir.exists() && maindir.isDirectory()) {
+            File arr[] = maindir.listFiles();
+            findFiles(arr,0,0, filez);
+      }
 
-        return filez; 
+      return filez;
   }
 
-  //method that gets list of files in directory
+  /*method that gets list of files in directory dirName
+  @Param dirName is the name of the directory 
+  **/
   private static ArrayList<String> getFileList(String dirName) {
-        File maindir = new File(dirName);
-        ArrayList<String> filez = new ArrayList<String>(); 
+      File maindir = new File(dirName);
+      ArrayList<String> filez = new ArrayList<String>();
 
-        if (maindir.exists() && maindir.isDirectory()) { 
-              File arr[] = maindir.listFiles(); 
-              walkDir(arr,0,0, filez); 
-        }
+      if (maindir.exists() && maindir.isDirectory()) {
+            File arr[] = maindir.listFiles();
+            walkDir(arr,0,0, filez);
+      }
 
-        return filez; 
+      return filez;
   }
 
-  //return content type for a file
+  /*return content type for a file
+  @Param ext extension of file to fetch 
+  **/
   private static String getcontentType(String ext){
     String contentType = "";
     switch(ext){
@@ -416,32 +425,32 @@ public class PartialHTTP1Server {
         contentType = "application/octet-stream";
       }
       return contentType;
-    }
+  }
 
-    /*Method to create the Header 
-    @param File to extract information from
-    @return The header information
-    **/
-    private static String getHeader(File file, String ext){
-          
-      String header = "";
-      String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
-      String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
-      String contentEncoding = "Content-Encoding: identity\r" + "\n";
-          
-      String date = "Sat, 21 Jul 2021 10:00 GMT";
-      Date expDate = new Date(date);
-      SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
-      s.setTimeZone(TimeZone.getTimeZone("GMT"));
+  /*Method to create the Header
+  @param File to extract information from
+  @return The header information
+  **/
+  private static String getHeader(File file, String ext){
+       
+    String header = "";
+    String contentType = "Content-Type: " + getcontentType(ext) + "\r" + "\n";
+    String contentLength = "Content-Length: " + file.length() + "\r" + "\n";
+    String contentEncoding = "Content-Encoding: identity\r" + "\n";
+       
+    String date = "Sat, 21 Jul 2021 10:00 GMT";
+    Date expDate = new Date(date);
+    SimpleDateFormat s = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
+    s.setTimeZone(TimeZone.getTimeZone("GMT"));
 
-      String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
+    String lastModified = "Last-Modified: " + s.format(file.lastModified()) + "\r" + "\n";
 
-      date = s.format(expDate);
-      String expires = "Expires: " + date + "\r" + "\n";
-      header =  contentEncoding + contentLength + contentType + expires + lastModified;
-      return header;
-      
-    }
+    date = s.format(expDate);
+    String expires = "Expires: " + date + "\r" + "\n";
+    header =  contentEncoding + contentLength + contentType + expires + lastModified;
+    return header;
+   
+  }
 
   public static void main(String[] args) {
     if(args.length != 1){
@@ -459,7 +468,7 @@ public class PartialHTTP1Server {
     }
     catch(NullPointerException e){
       System.out.println("Server needs port number");
-      return; 
+      return;
     }
     try{
       port = Integer.parseInt(holder);
