@@ -11,7 +11,7 @@ public class PartialHTTP1Server implements Runnable {
 
 	//private ArrayList<WorkerThread> threads = new ArrayList<>(50); //list of threads; once full
 	//private static ExecutorService pool = Executors.newFixedThreadPool(5); //thread pool of size
-	private static byte[] payLoad;
+	private byte[] payLoad;
 	private Socket clientSocket;
 
 		PartialHTTP1Server (Socket clientSocket) {
@@ -86,7 +86,7 @@ public class PartialHTTP1Server implements Runnable {
 
 	//from request get file to return
 	//@Param request is the request from client
-	private static File fileToReturn (String request) {
+	private File fileToReturn (String request) {
 		StringTokenizer tokens = new StringTokenizer(request); //tokenize by SPACE
 
 		String method = tokens.nextToken();
@@ -109,7 +109,7 @@ public class PartialHTTP1Server implements Runnable {
 	   @Param request is the request from client
 	   @Param modify is the modifyDate
 	 **/
-	private static String response(String request, String modifyDate) {
+	private String response(String request, String modifyDate) {
 		if (request == null) {
 			return "HTTP/1.0 400 Bad Request\r\n";
 		}
@@ -129,23 +129,8 @@ public class PartialHTTP1Server implements Runnable {
 
 		//parse file part of request e.g. /index.html
 		String file = tokens.nextToken();
-
-					/*
-					String filePath = "." + file;
-					Path path = Paths.get(filePath);
-					try{
-						payLoad = Files.readAllBytes(path);
-					} 
-					catch (AccessDeniedException e) {
-						return "HTTP/1.0 403 Forbidden";
-					}
-					catch (IOException io) {
-						return "HTTP/1.0 404 Not Found";
-					}
-					*/
-
-
-		//System.out.println("file token: " + file);
+		Path path = Paths.get("." + file);
+		System.out.println("file token: " + file);
 		StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
 		int numTokens = files.countTokens();
 		String fileName = "";
@@ -185,7 +170,6 @@ public class PartialHTTP1Server implements Runnable {
 		}
 		//parse protocol to get protocol name and version
 		String protocol = tokens.nextToken();
-
 		StringTokenizer protocolData = new StringTokenizer(protocol, "/");
 		String http = protocolData.nextToken();
 		String version = protocolData.nextToken();
@@ -266,7 +250,8 @@ public class PartialHTTP1Server implements Runnable {
 		//If the request includes an "If-Modified-Since" field, Perform a Conditional GET.
 		if ((method.equals("GET") && inDir)) {
 			File resource = fetchFile(fileName, actualFiles); //fetch the file
-
+			//File resource = new File("." + file);
+			//Path path = Paths.get(resource);
 			SimpleDateFormat f = new SimpleDateFormat("EEE, dd MMM yyyy kk:mm:ss z");
 			f.setTimeZone(TimeZone.getTimeZone("GMT"));
 
@@ -289,18 +274,11 @@ public class PartialHTTP1Server implements Runnable {
 					}
 				}
 				catch(ParseException e){
-					System.out.println("Error: Invalid Dates");
+					System.out.println("Invalid modified date");
 				}
 			}
-
-
-
-			
-					/*
-					String filePath = "." + file;
-					Path p = Paths.get(filePath);
 					try{
-						payLoad = Files.readAllBytes(p);
+						payLoad = Files.readAllBytes(path);
 					} 
 					catch (AccessDeniedException e) {
 						return "HTTP/1.0 403 Forbidden";
@@ -308,7 +286,7 @@ public class PartialHTTP1Server implements Runnable {
 					catch (IOException io) {
 						return "HTTP/1.0 404 Not Found";
 					}
-					*/
+					
 
 			String status = "HTTP/1.0 200 OK\r\n";
 			String allow = "Allow: GET, POST, HEAD\r\n";
@@ -320,6 +298,18 @@ public class PartialHTTP1Server implements Runnable {
 		// Perform POST command DO NOT ADD ALLOW
 		if (method.equals("POST") && inDir) {
 			File resource = fetchFile(fileName, actualFiles); //fetch the file
+			//File resource = new File("." + file);
+			//Path path = Paths.get("." + file);
+					
+					try{
+						payLoad = Files.readAllBytes(path);
+					} 
+					catch (AccessDeniedException e) {
+						return "HTTP/1.0 403 Forbidden";
+					}
+					catch (IOException io) {
+						return "HTTP/1.0 404 Not Found";
+					}
 			String status = "HTTP/1.0 200 OK\r\n";
 			String allow = "Allow: GET, POST, HEAD\r\n";
 			head = status + allow + getHeader(resource, fileExt);
@@ -333,7 +323,7 @@ public class PartialHTTP1Server implements Runnable {
 	}
 
 	//helper method to fetch the file
-	private static File fetchFile(String name, ArrayList<File> files) {
+	private File fetchFile(String name, ArrayList<File> files) {
 		for (int i = 0; i < files.size(); i++) {
 			if (files.get(i).getName().equals(name)) {
 				return files.get(i);
@@ -348,7 +338,7 @@ public class PartialHTTP1Server implements Runnable {
 	  @Param level is the current level in directory
 	  @Param ArrayList f collects file names
 	 **/
-	private static void walkDir(File[] arr, int index, int level, ArrayList<String> f) {
+	private void walkDir(File[] arr, int index, int level, ArrayList<String> f) {
 		// terminate condition
 		if(index == arr.length)
 			return;
@@ -373,7 +363,7 @@ public class PartialHTTP1Server implements Runnable {
 	  @Param level is the level in the directory
 	  @Param ArrayList f is used to collect the files
 	 **/
-	private static void findFiles(File[] arr, int index, int level, ArrayList<File> f) {
+	private void findFiles(File[] arr, int index, int level, ArrayList<File> f) {
 		// terminate condition
 		if(index == arr.length)
 			return;
@@ -392,7 +382,7 @@ public class PartialHTTP1Server implements Runnable {
 	/*method that gets actual files in directory dirName
 	  @Param dirName is the name of the directory
 	 **/
-	private static ArrayList<File> getFiles(String dirName) {
+	private ArrayList<File> getFiles(String dirName) {
 		File maindir = new File(dirName);
 		ArrayList<File> filez = new ArrayList<File>();
 
@@ -407,7 +397,7 @@ public class PartialHTTP1Server implements Runnable {
 	/*method that gets list of files in directory dirName
 	  @Param dirName is the name of the directory
 	 **/
-	private static ArrayList<String> getFileList(String dirName) {
+	private ArrayList<String> getFileList(String dirName) {
 		File maindir = new File(dirName);
 		ArrayList<String> filez = new ArrayList<String>();
 
@@ -507,14 +497,11 @@ public class PartialHTTP1Server implements Runnable {
 
 					//if valid response send payload
 					if (resp.contains("200 OK") && !(request.contains("HEAD"))) {
-						File res = fileToReturn(request);
-						payLoad = Files.readAllBytes(res.toPath());
+						//System.out.println(payLoad);
 						outHeader.write(payLoad);
-						//Path path = Paths.get("./" + res);
-						//byte[] fileBytes = Files.readAllBytes(path);
-						//outHeader.write(payLoad);
+						//outHeader.flush();
+										}
 					}
-				}
 				catch (Exception e) {
 					System.out.println(e);
 				}
