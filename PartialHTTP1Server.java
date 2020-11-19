@@ -47,7 +47,6 @@ public class PartialHTTP1Server implements Runnable {
 			ExecutorService threads = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
 			try{
 				sersock = new ServerSocket(port);
-				System.out.println("Listening on Port Number " + port);
 
 				while(true) {
 					//When a client connects, spawn a new thread to handle it
@@ -113,6 +112,7 @@ public class PartialHTTP1Server implements Runnable {
 		int numTokens = files.countTokens();
 		String fileName = "";
 		String folder = "";
+		String folder2 = "";
 		String fn = "";
 		String fileExt = "";
 
@@ -132,6 +132,25 @@ public class PartialHTTP1Server implements Runnable {
 		//if requested resource is located in folder
 		if (numTokens == 2) {
 			folder = files.nextToken();
+			fileName = files.nextToken(); //get file token
+
+			if(fileName.indexOf(".")!=-1){
+			StringTokenizer fileParse = new StringTokenizer(fileName, ".");
+			fn = fileParse.nextToken();
+			fileExt = fileParse.nextToken();
+			}
+			else{
+			fn = fileName;
+			}
+		
+		}
+
+				
+		//if requested resource is located in resources folder
+		if (numTokens == 3) {
+		
+			folder = files.nextToken();
+			folder2 = files.nextToken();
 			fileName = files.nextToken(); //get file token
 
 			if(fileName.indexOf(".")!=-1){
@@ -297,6 +316,7 @@ public class PartialHTTP1Server implements Runnable {
 		switch(ext){
 			case "html":
 			case "txt":
+			case "cgi":
 				contentType = "text/html";
 				break;
 			case "gif":
@@ -374,6 +394,28 @@ public class PartialHTTP1Server implements Runnable {
 
 	}
 
+	private String postCheck(String request, String from, String userAgent, String contentType, String contentLength, String param){
+		String response = "";
+		if(contentLength == ""){
+			response += "HTTP/1.0 411 Length Required/r/n";
+		}
+		
+		
+		if(contentType == ""){
+			response += "HTTP/1.0 500 Internal Server Error/r/n";
+		}
+		try{
+			int i = Integer.parseInt(contentLength);
+			if(i==0) response += "HTTP/1.0 204 No Content/r/n";
+		}
+		catch(NumberFormatException nfe){
+			response += "HTTP/1.0 411 Length Required/r/n";
+		}
+			
+		
+		return response;
+	}
+
 
 	public void run() {
 		try {
@@ -385,18 +427,72 @@ public class PartialHTTP1Server implements Runnable {
 			clientSocket.setSoTimeout(3000);
 			String request = "";
 			String modifyDate = "";
+			String from = "";
+			String userAgent = "";
+			String contentType = "";
+			String contentLength = "";
+			String param = "";
+			String temp = "";
 			File resource = null;
-			int lines = 0;
-		
-			while (lines != 2) {
-				if(lines == 0){
-					request = inStream.readLine();
+			int i = 0;
+
+			try{
+			while((temp = inStream.readLine()) != null && temp.length()!=0){
+				if(request == ""){
+					request = temp;
+					continue;
 				}
-				else if (lines == 1) {
-					modifyDate = inStream.readLine();
+				
+				if(request.contains("GET")){
+					modifyDate = temp;
 				}
-					lines++;
+				
+				if(request.contains("POST")){
+						if(temp.contains("From")){
+							from = temp.substring(temp.indexOf(":")+2);
+						}
+						else if(temp.contains("User-Agent")){
+							userAgent = temp.substring(temp.indexOf(":")+2);
+						}
+						else if(temp.contains("Content-Type")){
+							contentType = temp.substring(temp.indexOf(":")+2);
+						}
+						else if(temp.contains("Content-Length")){
+							contentLength = temp.substring(temp.indexOf(":")+2);
+						}
+						else if(temp.contains("&")){
+							param = temp;
+						}	
+					}
+				
+				
 			}
+
+				if(param == ""){
+					param = inStream.readLine();
+				}	
+			
+			}
+			catch(IOException eih){
+				System.out.println("bad");
+			}
+			
+			System.out.println("request: " + request);
+			System.out.println("modify date " + modifyDate);
+			System.out.println("from " + from);
+			System.out.println("user agent " + userAgent);
+			System.out.println("content type " + contentType);
+			System.out.println("content length " + contentLength);
+			System.out.println("param " + param);
+
+			String postResp = postCheck(request, from, userAgent, contentType, contentLength, param);
+
+			if(request.contains("POST")){
+			byte[] poststuff = postResp.getBytes();
+			outHeader.write(poststuff, 0, poststuff.length);
+			outHeader.flush();
+			}
+			
 			//Parse input from client
 			String resp = response(request, modifyDate);
 			System.out.println(resp);
@@ -404,6 +500,7 @@ public class PartialHTTP1Server implements Runnable {
 			outHeader.write(byteResponse, 0, byteResponse.length);
 			System.out.println(byteResponse.length);
 			outHeader.flush();
+			
 
 			//if valid response send payload
 			if (resp.contains("200 OK") && !(request.contains("HEAD")) ) {
