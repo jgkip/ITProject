@@ -475,10 +475,12 @@ public class PartialHTTP1Server implements Runnable {
 				DataOutputStream outHeader = new DataOutputStream(clientSocket.getOutputStream());
 
 				try {
+					clientSocket.setSoTimeout(3000);
 					String request = "";
 					String modifyDate = "";
 					File resource = null;
 					int lines = 0;
+		
 					while (lines != 2) {
 						if(lines == 0){
 							request = inStream.readLine();
@@ -492,19 +494,23 @@ public class PartialHTTP1Server implements Runnable {
 					String resp = response(request, modifyDate);
 					System.out.println(resp);
 					byte[] byteResponse = resp.getBytes();
-					outHeader.write(byteResponse);
+					outHeader.write(byteResponse, 0, byteResponse.length);
+					System.out.println(byteResponse.length);
 					outHeader.flush();
 
 					//if valid response send payload
 					if (resp.contains("200 OK") && !(request.contains("HEAD"))) {
+						System.out.println(payLoad.length);
+						outHeader.write(payLoad, 0, payLoad.length);
+						
 						//System.out.println(payLoad);
-						outHeader.write(payLoad);
 						//outHeader.flush();
-										}
 					}
-				catch (Exception e) {
-					System.out.println(e);
-				}
+					}
+				catch (SocketTimeoutException e){
+				byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
+				outHeader.write(byteResponse, 0, byteResponse.length);
+			}
 				inStream.close();
 				outHeader.close();
 				clientSocket.close();
