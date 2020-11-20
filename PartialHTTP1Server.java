@@ -220,10 +220,22 @@ public class PartialHTTP1Server implements Runnable {
 		if(resource.isFile()){
 			inDir = true;
 		}
+		//check if the file is in the directory as a cgi for POST commands
+		if (method.equals("POST")){
+			System.out.println("file value " + file);
+			String tmp = file.substring(0,file.indexOf("."));
+			
+			String file2 = tmp + ".cgi";
+			System.out.println("file2 value " + file2);
+			File resource2 = new File("./" + file2);
+			if(resource2.isFile()){
+				inDir = true;
+			}
+		}
 
 		String head;
 
-		if (file.contains("secret")) {
+		if (file.contains("secret") || file.contains("forbidden")) {
 			return "HTTP/1.0 403 Forbidden\r\n";
 		}
 
@@ -284,27 +296,15 @@ public class PartialHTTP1Server implements Runnable {
 		// Perform POST command DO NOT ADD ALLOW
 		if (method.equals("POST") && inDir) {
 			System.out.println("YESSSSS");
-			/*
-			   try{
-			   payload = readFile(resource);
-			   }
-			   catch (AccessDeniedException e) {
-			   return "HTTP/1.0 403 Forbidden";
-			   }
-			   catch (IOException io) {
-			   return "HTTP/1.0 404 Not Found";
-			   }
-
-			   String status = "HTTP/1.0 200 OK\r\n";
-			   String allow = "Allow: GET, POST, HEAD\r\n";
-			   head = status + allow + getHeader(resource, fileExt);
-			   return head;
-			 */
+			
 			if (contentLength == "") {
-				return "HTTP/1.0 411 Length required";
+				return "HTTP/1.0 411 Length Required";
 			}
 			if(contentType == "") {
 				return "HTTP/1.0 500 Internal Server Error";
+			}
+			if(!(fileExt.equals("cgi"))){
+				return "HTTP/1.0 405 Method Not Allowed";
 			}
 			try{
 				int i = Integer.parseInt(contentLength);
@@ -316,11 +316,28 @@ public class PartialHTTP1Server implements Runnable {
 				return "HTTP/1.0 411 Length Required";
 			}
 
+			 try{
+			   byte[] temporary = readFile(resource);
+			   }
+			   catch (AccessDeniedException e) {
+			   return "HTTP/1.0 403 Forbidden";
+			   }
+			   catch (IOException io) {
+			   return "HTTP/1.0 405 Method Not Allowed";
+			   }
+			  
+			   String status = "HTTP/1.0 200 OK\r\n";
+			   String allow = "Allow: GET, POST, HEAD\r\n";
+			   head = status + allow + getHeader(resource, fileExt);  
+			   return head;
+
 		}
 
 		if(inDir == false) {
 			return "HTTP/1.0 404 Not Found";
 		}
+
+		
 		return "";
 	}
 
@@ -413,28 +430,25 @@ public class PartialHTTP1Server implements Runnable {
 
 	}
 
-	private String postCheck(String request, String from, String userAgent, String contentType, String contentLength, String param) {
-		String response = "";
-		if(contentLength == ""){
-			response = "HTTP/1.0 411 Length Required/r/n";
-		}
-
-
-		if(contentType == "") {
-			response = "HTTP/1.0 500 Internal Server Error/r/n";
-		}
+	private String cgiExecute(String request, String param){
 		try{
-			int i = Integer.parseInt(contentLength);
-			if(i==0) {
-				response = "HTTP/1.0 204 No Content/r/n";
+			String request1 = param.substring(0, param.indexOf("&"));
+			String request2 = param.substring(param.indexOf("&")+1);
+			String name1 = request1.substring(0, request1.indexOf("="));
+			String value1 = = request1.substring(request1.indexOf("=")+1);
+			String name2 = request2.substring(0, request2.indexOf("="));
+			String value2 = = request2.substring(request2.indexOf("=")+1);
+
+		//check if the values are any reserved symbol under HTTP
+			if(value1.contains("!") || value1.contains("*") || value1.contains("'") || value1.contains("(") || value1.contains(")") || value1.contains(";") || 	value1.contains(":") || value1.contains("@") || value1.contains("$") || value1.contains("+") || value1.contains(",") || value1.contains("/") || value1.contains("?") || value1.contains("#") || value1.contains("[") || value1.contains("]") || value1.contains(" ")){
+				//encode the character with an ! before that character
+
 			}
 		}
-		catch(NumberFormatException nfe){
-			response = "HTTP/1.0 411 Length Required/r/n";
+		catch(Exception ex){
+			return "HTTP/1.0 500 Internal Server Error";
 		}
-
-
-		return response;
+		return "";
 	}
 
 
@@ -524,7 +538,12 @@ public class PartialHTTP1Server implements Runnable {
 				System.out.println(byteResponse.length);
 				outHeader.flush();
 				//if valid response send payload
-				if (resp.contains("200 OK") && !(request.contains("HEAD")) ) {
+
+				if (resp.contains("200 OK") && (request.contains("POST")) ) {
+					String cgi = cgiExecute(request, param);
+					//outHeader.write(payload, 0, payload.length);
+				}
+				if (resp.contains("200 OK") && (request.contains("GET")) ) {
 					//System.out.println("payload length is " + payload.length);
 					outHeader.write(payload, 0, payload.length);
 				}
