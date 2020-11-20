@@ -17,7 +17,7 @@ public class PartialHTTP1Server implements Runnable {
 		this.clientSocket = clientSocket;
 	}
 
-	
+
 	public static void main(String[] args) {
 		if(args.length != 1){
 			System.out.println("Server needs port number");
@@ -44,32 +44,32 @@ public class PartialHTTP1Server implements Runnable {
 				return;
 			}
 			else{
-			ExecutorService threads = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
-			try{
-				sersock = new ServerSocket(port);
+				ExecutorService threads = new ThreadPoolExecutor(5, 50, 5000, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+				try{
+					sersock = new ServerSocket(port);
 
-				while(true) {
-					//When a client connects, spawn a new thread to handle it
-					Socket sock = sersock.accept();
-					System.out.println("Server Started");
-					try {
-					threads.execute(new PartialHTTP1Server(sock));
-					} catch (RejectedExecutionException rej) {
+					while(true) {
+						//When a client connects, spawn a new thread to handle it
+						Socket sock = sersock.accept();
+						System.out.println("Server Started");
 						try {
-						PrintWriter outToClient = new PrintWriter(sock.getOutputStream(), true);
-						outToClient.println("503 Service Unavailable");
-						outToClient.close();
-						sersock.close();
-						} catch (IOException f) {
-							System.out.println("Error handling client input.");
+							threads.execute(new PartialHTTP1Server(sock));
+						} catch (RejectedExecutionException rej) {
+							try {
+								PrintWriter outToClient = new PrintWriter(sock.getOutputStream(), true);
+								outToClient.println("503 Service Unavailable");
+								outToClient.close();
+								sersock.close();
+							} catch (IOException f) {
+								System.out.println("Error handling client input.");
+							}
 						}
+						//new Thread(new SimpleHTTPServer(sock)).start();
 					}
-					//new Thread(new SimpleHTTPServer(sock)).start();
+				} catch (IOException e) {
+					System.out.println("Error accepting connection.");
 				}
-			} catch (IOException e) {
-				System.out.println("Error accepting connection.");
 			}
-		}
 
 
 		}
@@ -78,7 +78,7 @@ public class PartialHTTP1Server implements Runnable {
 			return;
 		}
 	}
-	
+
 
 
 
@@ -86,7 +86,7 @@ public class PartialHTTP1Server implements Runnable {
 	   @Param request is the request from client
 	   @Param modify is the modifyDate
 	 **/
-	private String response(String request, String modifyDate) {
+	private String response(String request, String modifyDate, String from, String userAgent, String contentType, String contentLength, String param) {
 		if (request == null) {
 			return "HTTP/1.0 400 Bad Request\r\n";
 		}
@@ -107,7 +107,7 @@ public class PartialHTTP1Server implements Runnable {
 		String file = tokens.nextToken();
 		String filePath = "." + file;
 		Path path = Paths.get(filePath);
-		
+
 		StringTokenizer files = new StringTokenizer(file, "/"); //tokenize by /
 		int numTokens = files.countTokens();
 		String fileName = "";
@@ -120,12 +120,12 @@ public class PartialHTTP1Server implements Runnable {
 		if (numTokens == 1) {
 			fileName = files.nextToken(); //get file token
 			if(fileName.indexOf(".")!=-1){
-			StringTokenizer fileParse = new StringTokenizer(fileName, ".");
-			fn = fileParse.nextToken();
-			fileExt = fileParse.nextToken();
+				StringTokenizer fileParse = new StringTokenizer(fileName, ".");
+				fn = fileParse.nextToken();
+				fileExt = fileParse.nextToken();
 			}
 			else{
-			fn = fileName;
+				fn = fileName;
 			}
 		}
 
@@ -135,33 +135,33 @@ public class PartialHTTP1Server implements Runnable {
 			fileName = files.nextToken(); //get file token
 
 			if(fileName.indexOf(".")!=-1){
-			StringTokenizer fileParse = new StringTokenizer(fileName, ".");
-			fn = fileParse.nextToken();
-			fileExt = fileParse.nextToken();
+				StringTokenizer fileParse = new StringTokenizer(fileName, ".");
+				fn = fileParse.nextToken();
+				fileExt = fileParse.nextToken();
 			}
 			else{
-			fn = fileName;
+				fn = fileName;
 			}
-		
+
 		}
 
-				
+
 		//if requested resource is located in resources folder
 		if (numTokens == 3) {
-		
+
 			folder = files.nextToken();
 			folder2 = files.nextToken();
 			fileName = files.nextToken(); //get file token
 
 			if(fileName.indexOf(".")!=-1){
-			StringTokenizer fileParse = new StringTokenizer(fileName, ".");
-			fn = fileParse.nextToken();
-			fileExt = fileParse.nextToken();
+				StringTokenizer fileParse = new StringTokenizer(fileName, ".");
+				fn = fileParse.nextToken();
+				fileExt = fileParse.nextToken();
 			}
 			else{
-			fn = fileName;
+				fn = fileName;
 			}
-		
+
 		}
 		//parse protocol to get protocol name and version
 		String protocol = tokens.nextToken();
@@ -215,11 +215,12 @@ public class PartialHTTP1Server implements Runnable {
 
 		boolean inDir =  false;
 		File resource = new File("."+ file);
-		
+		System.out.println("IN DIR FILE NAME " + resource.getName());
+
 		if(resource.isFile()){
 			inDir = true;
 		}
-		
+
 		String head;
 
 		if (file.contains("secret")) {
@@ -227,7 +228,7 @@ public class PartialHTTP1Server implements Runnable {
 		}
 
 		// Perform HEAD command
-		if (method.equals("HEAD") && inDir) {		
+		if (method.equals("HEAD") && inDir) {
 			String status = "HTTP/1.0 200 OK\r\n";
 			String allow = "Allow: GET, POST, HEAD\r\n";
 			head = status + allow + getHeader(resource, fileExt);
@@ -262,17 +263,17 @@ public class PartialHTTP1Server implements Runnable {
 					System.out.println("Invalid modified date");
 				}
 			}
-		
+
 			try{
 				payload = readFile(resource);
-			} 
+			}
 			catch (AccessDeniedException e) {
 				return "HTTP/1.0 403 Forbidden";
 			}
 			catch (IOException io) {
 				return "HTTP/1.0 404 Not Found";
 			}
-	
+
 			String status = "HTTP/1.0 200 OK\r\n";
 			String allow = "Allow: GET, POST, HEAD\r\n";
 			head = status + allow + getHeader(resource, fileExt);
@@ -282,28 +283,46 @@ public class PartialHTTP1Server implements Runnable {
 
 		// Perform POST command DO NOT ADD ALLOW
 		if (method.equals("POST") && inDir) {
-			
+			System.out.println("YESSSSS");
+			/*
+			   try{
+			   payload = readFile(resource);
+			   }
+			   catch (AccessDeniedException e) {
+			   return "HTTP/1.0 403 Forbidden";
+			   }
+			   catch (IOException io) {
+			   return "HTTP/1.0 404 Not Found";
+			   }
+
+			   String status = "HTTP/1.0 200 OK\r\n";
+			   String allow = "Allow: GET, POST, HEAD\r\n";
+			   head = status + allow + getHeader(resource, fileExt);
+			   return head;
+			 */
+			if (contentLength == "") {
+				return "HTTP/1.0 411 Length required";
+			}
+			if(contentType == "") {
+				return "HTTP/1.0 500 Internal Server Error";
+			}
 			try{
-				payload = readFile(resource);
-			} 
-			catch (AccessDeniedException e) {
-				return "HTTP/1.0 403 Forbidden";
+				int i = Integer.parseInt(contentLength);
+				if(i==0) {
+					return "HTTP/1.0 204 No Content";
+				}
 			}
-			catch (IOException io) {
-				return "HTTP/1.0 404 Not Found";
-			}
-					
-			String status = "HTTP/1.0 200 OK\r\n";
-			String allow = "Allow: GET, POST, HEAD\r\n";
-			head = status + allow + getHeader(resource, fileExt);
-			return head;
+			catch(NumberFormatException nfe){
+				return "HTTP/1.0 411 Length Required";
 			}
 
-			if(inDir == false) {
-				return "HTTP/1.0 404 Not Found\r\n";
-			}
-			return "";
 		}
+
+		if(inDir == false) {
+			return "HTTP/1.0 404 Not Found";
+		}
+		return "";
+	}
 
 
 
@@ -376,11 +395,11 @@ public class PartialHTTP1Server implements Runnable {
 
 		int fileLength = 0;
 		if(file != null){
-		fileLength = (int) file.length();
+			fileLength = (int) file.length();
 		}
 		byte[] fileToReturn = new byte[fileLength];
 		FileInputStream fis = null;
-		
+
 		try{
 			fis = new FileInputStream(file);
 			fis.read(fileToReturn);
@@ -394,25 +413,27 @@ public class PartialHTTP1Server implements Runnable {
 
 	}
 
-	private String postCheck(String request, String from, String userAgent, String contentType, String contentLength, String param){
+	private String postCheck(String request, String from, String userAgent, String contentType, String contentLength, String param) {
 		String response = "";
 		if(contentLength == ""){
-			response += "HTTP/1.0 411 Length Required/r/n";
+			response = "HTTP/1.0 411 Length Required/r/n";
 		}
-		
-		
-		if(contentType == ""){
-			response += "HTTP/1.0 500 Internal Server Error/r/n";
+
+
+		if(contentType == "") {
+			response = "HTTP/1.0 500 Internal Server Error/r/n";
 		}
 		try{
 			int i = Integer.parseInt(contentLength);
-			if(i==0) response += "HTTP/1.0 204 No Content/r/n";
+			if(i==0) {
+				response = "HTTP/1.0 204 No Content/r/n";
+			}
 		}
 		catch(NumberFormatException nfe){
-			response += "HTTP/1.0 411 Length Required/r/n";
+			response = "HTTP/1.0 411 Length Required/r/n";
 		}
-			
-		
+
+
 		return response;
 	}
 
@@ -421,104 +442,115 @@ public class PartialHTTP1Server implements Runnable {
 		try {
 			BufferedReader inStream = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 			DataOutputStream outHeader = new DataOutputStream(clientSocket.getOutputStream());
-			
 
-		try {
-			clientSocket.setSoTimeout(3000);
-			String request = "";
-			String modifyDate = "";
-			String from = "";
-			String userAgent = "";
-			String contentType = "";
-			String contentLength = "";
-			String param = "";
-			String temp = "";
-			File resource = null;
-			int i = 0;
 
-			try{
-			while((temp = inStream.readLine()) != null && temp.length()!=0){
-				if(request == ""){
-					request = temp;
-					continue;
-				}
-				
-				if(request.contains("GET")){
-					modifyDate = temp;
-				}
-				
-				if(request.contains("POST")){
-						if(temp.contains("From")){
-							from = temp.substring(temp.indexOf(":")+2);
+			try {
+				clientSocket.setSoTimeout(3000);
+				String request = "";
+				String modifyDate = "";
+				String from = "";
+				String userAgent = "";
+				String contentType = "";
+				String contentLength = "";
+				String param = "";
+				String temp = "";
+				File resource = null;
+				int i = 0;
+
+				try{
+					while((temp = inStream.readLine()) != null && temp.length()!=0){
+						if(request == ""){
+							request = temp;
+							continue;
 						}
-						else if(temp.contains("User-Agent")){
-							userAgent = temp.substring(temp.indexOf(":")+2);
+
+						if(request.contains("GET")){
+							modifyDate = temp;
 						}
-						else if(temp.contains("Content-Type")){
-							contentType = temp.substring(temp.indexOf(":")+2);
+
+						if(request.contains("POST")){
+							if(temp.contains("From")){
+								from = temp.substring(temp.indexOf(":")+2);
+							}
+							else if(temp.contains("User-Agent")){
+								userAgent = temp.substring(temp.indexOf(":")+2);
+							}
+							else if(temp.contains("Content-Type")){
+								contentType = temp.substring(temp.indexOf(":")+2);
+							}
+							else if(temp.contains("Content-Length")){
+								contentLength = temp.substring(temp.indexOf(":")+2);
+							}
+							else if(temp.contains("&")){
+								param = temp;
+							}
 						}
-						else if(temp.contains("Content-Length")){
-							contentLength = temp.substring(temp.indexOf(":")+2);
-						}
-						else if(temp.contains("&")){
-							param = temp;
-						}	
+
 					}
-				
-				
-			}
 
-				if(param == ""){
-					param = inStream.readLine();
-				}	
-			
-			}
-			catch(IOException eih){
-				System.out.println("bad");
-			}
-			
-			System.out.println("request: " + request);
-			System.out.println("modify date " + modifyDate);
-			System.out.println("from " + from);
-			System.out.println("user agent " + userAgent);
-			System.out.println("content type " + contentType);
-			System.out.println("content length " + contentLength);
-			System.out.println("param " + param);
+					if(param == ""){
+						param = inStream.readLine();
+					}
 
-			String postResp = postCheck(request, from, userAgent, contentType, contentLength, param);
+				}
+				catch(IOException eih){
+					System.out.println("bad");
+				}
 
-			if(request.contains("POST")){
-			byte[] poststuff = postResp.getBytes();
-			outHeader.write(poststuff, 0, poststuff.length);
-			outHeader.flush();
-			}
-			
-			//Parse input from client
-			String resp = response(request, modifyDate);
-			System.out.println(resp);
-			byte[] byteResponse = resp.getBytes();
-			outHeader.write(byteResponse, 0, byteResponse.length);
-			System.out.println(byteResponse.length);
-			outHeader.flush();
-			
+				System.out.println("REQUEST: " + request);
 
-			//if valid response send payload
-			if (resp.contains("200 OK") && !(request.contains("HEAD")) ) {
+
+				//String postResp = postCheck(request, from, userAgent, contentType, contentLength, param);
+				/*
+				   if(request.contains("POST")){
+				   System.out.println("REQUEST: " + request);
+				   System.out.println("MODIFY DATE: " + modifyDate);
+				   System.out.println("FROM: " + from);
+				   System.out.println("USER AGENT: " + userAgent);
+				   System.out.println("CONTENT TYPE: " + contentType);
+				   System.out.println("CONTENT LENGTH: " + contentLength);
+				   System.out.println("PARAM: " + param);
+				   byte[] poststuff = postResp.getBytes();
+				   outHeader.write(poststuff, 0, poststuff.length);
+				   outHeader.flush();
+				   }
+				 */
+
+				//Parse input from client
+				String resp = response(request, modifyDate, from, userAgent, contentType, contentLength, param);
+				System.out.println("RESPONSE: " + resp);
+				byte[] byteResponse = resp.getBytes();
+				outHeader.write(byteResponse, 0, byteResponse.length);
+				System.out.println(byteResponse.length);
+				outHeader.flush();
+				//if valid response send payload
+				if (resp.contains("200 OK") && !(request.contains("HEAD")) ) {
+					//System.out.println("payload length is " + payload.length);
+					outHeader.write(payload, 0, payload.length);
+				}
+
+				/*
+				//if valid response send payload
+				if (resp.contains("200 OK") && !(request.contains("HEAD")) ) {
 				//System.out.println("payload length is " + payload.length);
 				outHeader.write(payload, 0, payload.length);
-			}
+				}
+				 */
 			}
 			catch (SocketTimeoutException e){
 				byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
 				outHeader.write(byteResponse, 0, byteResponse.length);
 			}
-				inStream.close();
-				outHeader.close();
-				clientSocket.close();
-			}			
-			catch (IOException e) {
-			System.out.println(e);
-			}
-			
+			inStream.close();
+			outHeader.close();
+			clientSocket.close();
 		}
+		catch (IOException e) {
+			System.out.println(e);
+		}
+
+	}
 }
+
+
+
