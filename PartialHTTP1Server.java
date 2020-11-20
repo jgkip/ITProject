@@ -7,13 +7,13 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.text.ParseException;
 
-public class PartialHTTP1Server implements Runnable {
+public class HTTPServer implements Runnable {
 
 	private byte[] payload;
 	private Socket clientSocket;
 	private boolean returnPayload;
 
-	PartialHTTP1Server (Socket clientSocket) {
+	HTTPServer (Socket clientSocket) {
 		this.clientSocket = clientSocket;
 	}
 
@@ -53,7 +53,7 @@ public class PartialHTTP1Server implements Runnable {
 						Socket sock = sersock.accept();
 						System.out.println("Server Started");
 						try {
-							threads.execute(new PartialHTTP1Server(sock));
+							threads.execute(new HTTPServer(sock));
 						} catch (RejectedExecutionException rej) {
 							try {
 								PrintWriter outToClient = new PrintWriter(sock.getOutputStream(), true);
@@ -189,7 +189,7 @@ public class PartialHTTP1Server implements Runnable {
 		if (((!method.equals("GET") && (!method.equals("POST") && (!method.equals("HEAD"))))
 					&& (!version.equals("1.0")))) {
 			return "HTTP/1.0 400 Bad Request\r\n";
-		}
+					}
 
 		//check if valid request but no implementation
 		if (!(method.equals("GET")) && !(method.equals("POST")) && !(method.equals("HEAD")) && (version.equals("1.0"))) {
@@ -224,7 +224,7 @@ public class PartialHTTP1Server implements Runnable {
 		if (method.equals("POST")){
 			System.out.println("file value " + file);
 			String tmp = file.substring(0,file.indexOf("."));
-			
+
 			String file2 = tmp + ".cgi";
 			System.out.println("file2 value " + file2);
 			File resource2 = new File("./" + file2);
@@ -296,7 +296,8 @@ public class PartialHTTP1Server implements Runnable {
 		// Perform POST command DO NOT ADD ALLOW
 		if (method.equals("POST") && inDir) {
 			System.out.println("YESSSSS");
-			
+
+
 			if (contentLength == "") {
 				return "HTTP/1.0 411 Length Required";
 			}
@@ -316,20 +317,20 @@ public class PartialHTTP1Server implements Runnable {
 				return "HTTP/1.0 411 Length Required";
 			}
 
-			 try{
-			   byte[] temporary = readFile(resource);
-			   }
-			   catch (AccessDeniedException e) {
-			   return "HTTP/1.0 403 Forbidden";
-			   }
-			   catch (IOException io) {
-			   return "HTTP/1.0 405 Method Not Allowed";
-			   }
-			  
-			   String status = "HTTP/1.0 200 OK\r\n";
-			   String allow = "Allow: GET, POST, HEAD\r\n";
-			   head = status + allow + getHeader(resource, fileExt);  
-			   return head;
+			try{
+				byte[] temporary = readFile(resource);
+			}
+			catch (AccessDeniedException e) {
+				return "HTTP/1.0 403 Forbidden";
+			}
+			catch (IOException io) {
+				return "HTTP/1.0 405 Method Not Allowed";
+			}
+
+			String status = "HTTP/1.0 200 OK\r\n";
+			String allow = "Allow: GET, POST, HEAD\r\n";
+			head = status + allow + getHeader(resource, fileExt);  
+			return head;
 
 		}
 
@@ -337,7 +338,7 @@ public class PartialHTTP1Server implements Runnable {
 			return "HTTP/1.0 404 Not Found";
 		}
 
-		
+
 		return "";
 	}
 
@@ -430,25 +431,102 @@ public class PartialHTTP1Server implements Runnable {
 
 	}
 
+	//helper method to decode parameters 
+	private String decode(String param) {
+		if (param.contains("!!")) {
+			param = param.replace("!!", "!");
+		}
+		else if (param.contains("!")) {
+			param = param.replace("!", "");
+		}
+
+
+		return param;
+	}
+
+
+	//helper method that parses parameters 
+	private String parseParams(String param) {
+		ArrayList<String> p = new ArrayList<String>(); 
+		StringTokenizer parameters = new StringTokenizer(param, "&");
+		p.add(decode(parameters.nextToken()));
+		while (parameters.hasMoreTokens()) {
+			p.add(decode(parameters.nextToken()));
+		}
+		String parsed = "";
+		for (int i = 0; i < p.size(); i++) {
+			parsed += p.get(i) + " ";
+		}
+		return parsed;
+	}
+
 	private String cgiExecute(String request, String param){
 		try{
-			String request1 = param.substring(0, param.indexOf("&"));
-			String request2 = param.substring(param.indexOf("&")+1);
-			String name1 = request1.substring(0, request1.indexOf("="));
-			String value1 = = request1.substring(request1.indexOf("=")+1);
-			String name2 = request2.substring(0, request2.indexOf("="));
-			String value2 = = request2.substring(request2.indexOf("=")+1);
 
-		//check if the values are any reserved symbol under HTTP
-			if(value1.contains("!") || value1.contains("*") || value1.contains("'") || value1.contains("(") || value1.contains(")") || value1.contains(";") || 	value1.contains(":") || value1.contains("@") || value1.contains("$") || value1.contains("+") || value1.contains(",") || value1.contains("/") || value1.contains("?") || value1.contains("#") || value1.contains("[") || value1.contains("]") || value1.contains(" ")){
-				//encode the character with an ! before that character
+			StringTokenizer parse_request = new StringTokenizer(request);
+			String ft = parse_request.nextToken(); 
+			String script_name = parse_request.nextToken(); 
+			/*
+			   StringTokenizer parse_request = new StringTokenizer(request);
+			   String ft = parse_request.nextToken(); 
+			   String script_name = parse_request.nextToken(); 
 
+
+			   ArrayList<String> p = new ArrayList<String>(); 
+			   StringTokenizer parameters = new StringTokenizer(param, "&");
+			   p.add(parameters.nextToken());
+			   while (parameters.hasMoreTokens()) {
+			   p.add(parameters.nextToken());
+			   }
+			   */
+			  
+
+			//create command to execute CGI script
+			param = parseParams(param);
+			String command = "." + script_name + " " + param; 
+			//System.out.println("POST REQ SCRIPT NAME: " + script_name);
+			//System.out.println("PARAM PARSED: " + param);
+			System.out.println("COMMAND TO EXECUTE: " + command);
+			//
+			//return command;
+			
+			//run command -- currently not working: CreateProcess error?
+			
+			Runtime run = Runtime.getRuntime(); 
+			Process proc = run.exec(command);
+
+			InputStream stdIN = proc.getInputStream(); 
+			BufferedReader b = new BufferedReader(new InputStreamReader(stdIN));
+
+			StringBuilder out = new StringBuilder();
+
+			String line;
+			
+			while ((line = b.readLine()) != null) {
+				out.append(line + "\n");
 			}
+
+			b.close();
+			stdIN.close(); 
+
+			String string_payload_cgi = out.toString(); 
+
+			if (string_payload_cgi.endsWith("\n\n")) {
+				return string_payload_cgi.substring(0, string_payload_cgi.length()-1);
+			}
+
+
+			return string_payload_cgi;
+			
+			//return command;
+			
 		}
-		catch(Exception ex){
+		catch(IOException ex){
+			System.out.println(ex);
 			return "HTTP/1.0 500 Internal Server Error";
 		}
-		return "";
+		//return "Uh oh";
+
 	}
 
 
@@ -515,20 +593,18 @@ public class PartialHTTP1Server implements Runnable {
 
 
 				//String postResp = postCheck(request, from, userAgent, contentType, contentLength, param);
+				//param = parseParams(param);
 				/*
 				   if(request.contains("POST")){
-				   System.out.println("REQUEST: " + request);
-				   System.out.println("MODIFY DATE: " + modifyDate);
-				   System.out.println("FROM: " + from);
-				   System.out.println("USER AGENT: " + userAgent);
-				   System.out.println("CONTENT TYPE: " + contentType);
-				   System.out.println("CONTENT LENGTH: " + contentLength);
-				   System.out.println("PARAM: " + param);
-				   byte[] poststuff = postResp.getBytes();
-				   outHeader.write(poststuff, 0, poststuff.length);
-				   outHeader.flush();
+				//System.out.println("PARAM PARSED: " + param);
+				System.out.println("MODIFY DATE: " + modifyDate);
+				System.out.println("FROM: " + from);
+				System.out.println("USER AGENT: " + userAgent);
+				System.out.println("CONTENT TYPE: " + contentType);
+				System.out.println("CONTENT LENGTH: " + contentLength);
+				System.out.println("PARAM: " + param);
 				   }
-				 */
+				   */ 
 
 				//Parse input from client
 				String resp = response(request, modifyDate, from, userAgent, contentType, contentLength, param);
@@ -541,11 +617,17 @@ public class PartialHTTP1Server implements Runnable {
 
 				if (resp.contains("200 OK") && (request.contains("POST")) ) {
 					String cgi = cgiExecute(request, param);
-					//outHeader.write(payload, 0, payload.length);
+					System.out.println("PAYLOAD STRING REP: " + cgi);
+					/*
+					byte[] cgi_payload = cgi.getBytes();
+					outHeader.write(cgi_payload, 0, cgi_payload.length);
+					outHeader.flush();
+					*/
 				}
 				if (resp.contains("200 OK") && (request.contains("GET")) ) {
 					//System.out.println("payload length is " + payload.length);
 					outHeader.write(payload, 0, payload.length);
+					outHeader.flush(); 
 				}
 
 				/*
@@ -554,7 +636,7 @@ public class PartialHTTP1Server implements Runnable {
 				//System.out.println("payload length is " + payload.length);
 				outHeader.write(payload, 0, payload.length);
 				}
-				 */
+				*/
 			}
 			catch (SocketTimeoutException e){
 				byte[] byteResponse = "HTTP/1.0 408 Request Timeout".getBytes();
