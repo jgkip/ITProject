@@ -7,13 +7,13 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.text.ParseException;
 
-public class HTTPServer implements Runnable {
+public class PartialHTTP1Server implements Runnable {
 
 	private byte[] payload;
 	private Socket clientSocket;
 	private boolean returnPayload;
 
-	HTTPServer (Socket clientSocket) {
+	PartialHTTP1Server (Socket clientSocket) {
 		this.clientSocket = clientSocket;
 	}
 
@@ -53,7 +53,7 @@ public class HTTPServer implements Runnable {
 						Socket sock = sersock.accept();
 						System.out.println("Server Started");
 						try {
-							threads.execute(new HTTPServer(sock));
+							threads.execute(new PartialHTTP1Server(sock));
 						} catch (RejectedExecutionException rej) {
 							try {
 								PrintWriter outToClient = new PrintWriter(sock.getOutputStream(), true);
