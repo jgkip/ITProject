@@ -12,6 +12,9 @@ public class PartialHTTP1Server implements Runnable {
 	private byte[] payload;
 	private Socket clientSocket;
 	private boolean returnPayload;
+	private String from;
+	private String userAgent;
+	private static int port;
 
 	PartialHTTP1Server (Socket clientSocket) {
 		this.clientSocket = clientSocket;
@@ -23,7 +26,7 @@ public class PartialHTTP1Server implements Runnable {
 			System.out.println("Server needs port number");
 			return;
 		}
-		int port = 0;
+		port = 0;
 		String holder = "";
 		try{
 			holder = args[0];
@@ -450,6 +453,7 @@ public class PartialHTTP1Server implements Runnable {
 		ArrayList<String> p = new ArrayList<String>(); 
 		StringTokenizer parameters = new StringTokenizer(param, "&");
 		p.add(decode(parameters.nextToken()));
+		
 		while (parameters.hasMoreTokens()) {
 			p.add(decode(parameters.nextToken()));
 		}
@@ -458,6 +462,25 @@ public class PartialHTTP1Server implements Runnable {
 			parsed += p.get(i) + " ";
 		}
 		return parsed;
+	}
+
+
+	private String [] setEnvironmentVars(String param, String script_name){
+		String[] vars = new String[6];
+		vars[0] = "CONTENT_LENGTH=" + param.getBytes().length;
+		vars[1] = "SCRIPT_NAME=" + script_name;
+		try{
+		vars[2] = "SERVER_NAME=" + InetAddress.getLocalHost();
+		}
+		catch(UnknownHostException e){
+			System.out.println("Error getting IP address");	
+		}
+		vars[3] = "SERVER_PORT=" + port;
+		vars[4] = "HTTP_FROM=" + ((!from.equals("")) ? from : "null");
+		vars[5] = "HTTP_USER_AGENT=" + ((!userAgent.equals("")) ? userAgent : "null");
+
+		return vars;
+
 	}
 
 	private String cgiExecute(String request, String param){
@@ -483,9 +506,10 @@ public class PartialHTTP1Server implements Runnable {
 
 			//create command to execute CGI script
 			param = parseParams(param);
+			
 			String command = "." + script_name + " " + param; 
-			//System.out.println("POST REQ SCRIPT NAME: " + script_name);
-			//System.out.println("PARAM PARSED: " + param);
+			System.out.println("POST REQ SCRIPT NAME: " + script_name);
+			System.out.println("PARAM PARSED: " + param);
 			System.out.println("COMMAND TO EXECUTE: " + command);
 			//
 			//return command;
@@ -493,7 +517,13 @@ public class PartialHTTP1Server implements Runnable {
 			//run command -- currently not working: CreateProcess error?
 			
 			Runtime run = Runtime.getRuntime(); 
-			Process proc = run.exec(command);
+			String [] environmentVars = setEnvironmentVars(param, script_name);
+			Process proc = run.exec(command, environmentVars);
+			if(!param.equals("")){
+				proc.getOutputStream().write(param.getBytes());
+				proc.getOutputStream().close();
+
+			}
 
 			InputStream stdIN = proc.getInputStream(); 
 			BufferedReader b = new BufferedReader(new InputStreamReader(stdIN));
@@ -508,6 +538,8 @@ public class PartialHTTP1Server implements Runnable {
 
 			b.close();
 			stdIN.close(); 
+
+
 
 			String string_payload_cgi = out.toString(); 
 
@@ -540,8 +572,8 @@ public class PartialHTTP1Server implements Runnable {
 				clientSocket.setSoTimeout(3000);
 				String request = "";
 				String modifyDate = "";
-				String from = "";
-				String userAgent = "";
+				from = "";
+				userAgent = "";
 				String contentType = "";
 				String contentLength = "";
 				String param = "";
@@ -652,6 +684,3 @@ public class PartialHTTP1Server implements Runnable {
 
 	}
 }
-
-
-
